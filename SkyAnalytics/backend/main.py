@@ -1,31 +1,17 @@
-import os
-from typing import List, Generic, TypeVar
+from typing import List, Generic, TypeVar, Optional
 from datetime import date, datetime
 from math import ceil
 
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, func
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-
-from models import Base, Pasajero, Transaccion, MillasAcumuladas, CategoriaEnum
+from models import Pasajero, Transaccion, MillasAcumuladas, CategoriaEnum
+from database import get_db
 
 # TypeVar para schemas genéricos
 T = TypeVar('T')
-
-# ==================== CONFIG ====================
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://admin:secretpassword@db:5432/skyanalytics"
-)
-
-# Crear engine y sesiones
-engine = create_engine(DATABASE_URL, echo=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Crear tablas
-Base.metadata.create_all(bind=engine)
 
 # ==================== FASTAPI APP ====================
 app = FastAPI(
@@ -63,13 +49,13 @@ class PasajeroCreate(PasajeroBase):
 
 class PasajeroUpdate(BaseModel):
     """Schema para actualizar un pasajero"""
-    nombre_completo: str | None = None
-    correo: EmailStr | None = None
-    tarjeta_credito: str | None = None
-    tarjeta_debito: str | None = None
-    direccion: str | None = None
-    ciudad: str | None = None
-    pais: str | None = None
+    nombre_completo: Optional[str] = None
+    correo: Optional[EmailStr] = None
+    tarjeta_credito: Optional[str] = None
+    tarjeta_debito: Optional[str] = None
+    direccion: Optional[str] = None
+    ciudad: Optional[str] = None
+    pais: Optional[str] = None
 
 
 class PasajeroResponse(PasajeroBase):
@@ -164,19 +150,6 @@ class PerfillPasajero(BaseModel):
     
     class Config:
         from_attributes = True
-
-
-# ==================== DEPENDENCY INJECTION ====================
-def get_db():
-    """
-    Inyección de dependencia para la sesión de base de datos.
-    Se abre una conexión para cada request y se cierra al finalizar.
-    """
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # ==================== LÓGICA DE NEGOCIO: CATEGORIZACIÓN ====================

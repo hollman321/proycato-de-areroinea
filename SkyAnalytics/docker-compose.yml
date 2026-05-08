@@ -26,3 +26,5 @@ services:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: secretpassword
       POSTGRES_DB: skyanalytics
+    ports:
+      - "5432:5432"

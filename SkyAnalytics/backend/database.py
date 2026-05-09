@@ -11,6 +11,7 @@ Este módulo centraliza:
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import NullPool
 import dotenv
 
 # Cargar variables de entorno
@@ -27,12 +28,21 @@ from models import Base
 
 # ==================== ENGINE Y SESIONES ====================
 # echo=True muestra SQL en logs (desactiva en producción)
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,  # Cambiar a True para debug
-    pool_size=20,  # Conexiones simultáneas
-    max_overflow=0,  # No crear conexiones extras
-)
+IS_SERVERLESS = os.getenv("VERCEL") == "1"
+
+engine_args = {
+    "echo": False,  # Cambiar a True para debug
+    "pool_pre_ping": True,
+}
+
+if IS_SERVERLESS:
+    # En serverless evitamos mantener pools persistentes por instancia.
+    engine_args["poolclass"] = NullPool
+else:
+    engine_args["pool_size"] = 20
+    engine_args["max_overflow"] = 0
+
+engine = create_engine(DATABASE_URL, **engine_args)
 
 SessionLocal = sessionmaker(
     autocommit=False,

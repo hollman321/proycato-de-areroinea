@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, bindparam
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
@@ -21,13 +21,14 @@ st.set_page_config(
 
 # Cargar variables de entorno
 load_dotenv()
+API_BASE_URL = os.getenv("API_BASE_URL", "http://backend:8000")
 
 # ==================== AUTENTICACIÓN ====================
 def authenticate_user(email, password):
     """Autenticar contra la API"""
     try:
         response = requests.post(
-            "http://backend:8000/auth/login",
+            f"{API_BASE_URL}/auth/login",
             json={"email": email, "password": password},
             timeout=10
         )
@@ -48,12 +49,12 @@ def check_auth():
 
 def login_page():
     """Página de login"""
-    st.title("🔐 SkyAnalytics - Login")
+    st.markdown('<div class="main-header">🔐 SkyAnalytics - Login</div>', unsafe_allow_html=True)
     
     with st.form("login_form"):
         email = st.text_input("Email", placeholder="admin@skyanalytics.com")
-        password = st.text_input("Password", type="password", placeholder="admin1234")
-        submitted = st.form_submit_button("Login")
+        password = st.text_input("Password", type="password", placeholder="admin123")
+        submitted = st.form_submit_button("Iniciar sesion")
         
         if submitted:
             token = authenticate_user(email, password)
@@ -129,14 +130,19 @@ def obtener_estadisticas_generales():
 @st.cache_data(ttl=300)
 def obtener_distribucion_paises():
     """Obtener distribución de pasajeros por país (con caché Redis)"""
-    redis_client = get_redis_client()
     cache_key = "distribucion_paises"
-    
-    # Intentar obtener de caché
-    cached_data = redis_client.get(cache_key)
-    if cached_data:
-        return pd.read_json(cached_data)
-    
+
+    redis_client = None
+    try:
+        redis_client = get_redis_client()
+        # Intentar obtener de caché
+        cached_data = redis_client.get(cache_key)
+        if cached_data:
+            return pd.read_json(cached_data)
+    except Exception:
+        # Si Redis no esta disponible, continuamos con consulta directa a BD.
+        redis_client = None
+
     try:
         engine = get_db_connection()
         query = """
@@ -148,8 +154,9 @@ def obtener_distribucion_paises():
         """
         df = pd.read_sql(query, engine)
         
-        # Guardar en caché por 5 minutos
-        redis_client.setex(cache_key, 300, df.to_json())
+        # Guardar en caché por 5 minutos si Redis esta disponible
+        if redis_client is not None:
+            redis_client.setex(cache_key, 300, df.to_json())
         
         return df
     except Exception as e:
@@ -184,26 +191,36 @@ def obtener_pasajeros_filtrados(paises=None, fecha_inicio=None, fecha_fin=None):
     """Obtener pasajeros con filtros opcionales"""
     try:
         engine = get_db_connection()
-        
-        query = "SELECT * FROM pasajeros WHERE 1=1"
-        params = []
-        
-        if paises and len(paises) > 0:
-            placeholders = ','.join(['%s'] * len(paises))
-            query += f" AND pais IN ({placeholders})"
-            params.extend(paises)
-        
+
+        query = """
+            SELECT *
+            FROM pasajeros
+            WHERE 1=1
+        """
+        params = {}
+        has_paises = bool(paises)
+
+        if has_paises:
+            query += " AND pais IN :paises"
+            params["paises"] = tuple(paises)
+
         if fecha_inicio:
-            query += " AND fecha_registro >= %s"
-            params.append(fecha_inicio)
-        
+            query += " AND fecha_registro >= :fecha_inicio"
+            params["fecha_inicio"] = fecha_inicio
+
         if fecha_fin:
-            query += " AND fecha_registro <= %s"
-            params.append(fecha_fin)
-        
-        query += " LIMIT 1000"
-        
-        df = pd.read_sql(query, engine, params=params)
+            query += " AND fecha_registro <= :fecha_fin"
+            params["fecha_fin"] = fecha_fin
+
+        query += " ORDER BY id DESC LIMIT 1000"
+
+        sql_query = text(query)
+        if has_paises:
+            sql_query = sql_query.bindparams(bindparam("paises", expanding=True))
+
+        with engine.connect() as conn:
+            result = conn.execute(sql_query, params)
+            df = pd.DataFrame(result.fetchall(), columns=result.keys())
         return df
     except Exception as e:
         st.error(f"Error al obtener pasajeros filtrados: {e}")
@@ -228,13 +245,26 @@ def obtener_tendencia_registro():
         st.error(f"Error al obtener tendencia: {e}")
         return pd.DataFrame()
 
+
+@st.cache_data(ttl=1800)
+def obtener_paises_disponibles():
+    """Obtener paises para filtros (cache largo para acelerar carga inicial)."""
+    try:
+        engine = get_db_connection()
+        with engine.connect() as conn:
+            paises_query = conn.execute(text("SELECT DISTINCT pais FROM pasajeros ORDER BY pais"))
+            return [row[0] for row in paises_query.fetchall()]
+    except Exception as e:
+        st.error(f"Error al obtener paises: {e}")
+        return []
+
 # ==================== FUNCIÓN PARA BUSCAR PASAJERO EN API ====================
 def buscar_pasajero_por_email(email):
     """Buscar un pasajero específico usando la API"""
     try:
         response = requests.get(
-            "http://backend:8000/pasajeros/email/",
-            params={"email": email},
+            f"{API_BASE_URL}/pasajeros/buscar/por-correo",
+            params={"correo": email},
             timeout=5
         )
         if response.status_code == 200:
@@ -249,32 +279,84 @@ def buscar_pasajero_por_email(email):
 # ==================== INTERFAZ PRINCIPAL ====================
 st.markdown("""
     <style>
+        .stApp {
+            background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+            font-family: Arial, sans-serif;
+        }
         .main-header {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #1f77b4;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #0d6efd;
+            margin-bottom: 0.5rem;
+        }
+        .sub-header {
+            color: #6c757d;
+            margin-bottom: 1.2rem;
+        }
+        .section-card {
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 14px;
+            padding: 1rem 1.2rem;
+            box-shadow: 0 8px 20px rgba(13, 110, 253, 0.08);
             margin-bottom: 1rem;
         }
-        .metric-card {
-            background-color: #f0f2f6;
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            border-left: 4px solid #1f77b4;
+        .section-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #0d6efd;
+            margin-bottom: 0.75rem;
+        }
+        [data-testid="stMetric"] {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 12px;
+            padding: 12px;
+            box-shadow: 0 4px 12px rgba(39, 89, 152, 0.08);
+        }
+        [data-testid="stSidebar"] {
+            background: #ffffff;
+            border-right: 1px solid #dee2e6;
+        }
+        .stButton > button {
+            background: linear-gradient(90deg, #0d6efd, #0b5ed7);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            padding: 0.45rem 0.9rem;
+        }
+        .stButton > button:hover {
+            filter: brightness(0.95);
+        }
+        .stDownloadButton > button {
+            border-radius: 10px;
+            border: 1px solid #0d6efd;
+            color: #0d6efd;
+            background: white;
+            font-weight: 600;
         }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-header">✈️ SkyAnalytics - Cerebro Analítico</div>', unsafe_allow_html=True)
-st.write("Dashboard estratégico para gestión y análisis de datos de pasajeros")
+st.markdown('<div class="sub-header">Dashboard estratégico para gestión y análisis de datos de pasajeros</div>', unsafe_allow_html=True)
 
 # ==================== BARRA LATERAL - FILTROS ====================
 st.sidebar.markdown("### 🎯 Filtros y Controles")
+modo_rapido = st.sidebar.toggle("⚡ Carga rapida", value=True, help="Evita consultas pesadas al abrir.")
 
-# Obtener países únicos para el selector
-engine = get_db_connection()
-with engine.connect() as conn:
-    paises_query = conn.execute(text("SELECT DISTINCT pais FROM pasajeros ORDER BY pais"))
-    paises_disponibles = [row[0] for row in paises_query.fetchall()]
+# Obtener países únicos para el selector (cacheado) bajo demanda en modo rapido.
+if "paises_disponibles" not in st.session_state:
+    st.session_state.paises_disponibles = []
+
+if modo_rapido:
+    if st.sidebar.button("🌍 Cargar lista de paises", key="load_countries"):
+        st.session_state.paises_disponibles = obtener_paises_disponibles()
+else:
+    st.session_state.paises_disponibles = obtener_paises_disponibles()
+
+paises_disponibles = st.session_state.paises_disponibles
 
 # Filtro de países
 paises_seleccionados = st.sidebar.multiselect(
@@ -310,9 +392,18 @@ email_busqueda = st.sidebar.text_input(
 # ==================== SECCIÓN 1: ESTADÍSTICAS GENERALES ====================
 st.markdown("---")
 st.markdown("### 📊 Estadísticas Generales")
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
 stats = obtener_estadisticas_generales()
-if stats:
+mostrar_stats = True
+if modo_rapido:
+    if "mostrar_stats" not in st.session_state:
+        st.session_state.mostrar_stats = False
+    if st.button("📈 Cargar estadisticas", key="btn_stats"):
+        st.session_state.mostrar_stats = True
+    mostrar_stats = st.session_state.mostrar_stats
+
+if mostrar_stats and stats:
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -344,70 +435,82 @@ if stats:
                 f"Hace {dias_atras} días",
                 delta=str(stats['fecha_ultimo_registro'])
             )
+elif not mostrar_stats:
+    st.info("En modo rapido, las estadisticas se cargan bajo demanda.")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================== SECCIÓN 2: VISUALIZACIONES ESTRATÉGICAS ====================
 st.markdown("---")
 st.markdown("### 🎨 Análisis Estratégico")
-
-# Row 1: Distribución por país y Segmentación de tarjetas
-col1, col2 = st.columns(2)
-
-with col1:
-    st.write("**Distribución de Pasajeros por País (Top 15)**")
-    df_paises = obtener_distribucion_paises()
-    if not df_paises.empty:
-        fig_mapa = px.bar(
-            df_paises.head(15),
-            x='cantidad',
-            y='pais',
-            orientation='h',
-            color='cantidad',
-            color_continuous_scale='Viridis',
-            title="Top 15 Países"
-        )
-        fig_mapa.update_layout(height=400, showlegend=False)
-        st.plotly_chart(fig_mapa, use_container_width=True)
-    else:
-        st.info("No hay datos disponibles")
-
-with col2:
-    st.write("**Segmentación de Mercado por Tarjeta**")
-    df_tarjetas = obtener_segmentacion_tarjetas()
-    if not df_tarjetas.empty:
-        fig_tarjetas = px.pie(
-            df_tarjetas,
-            values='cantidad',
-            names='tipo_tarjeta',
-            title="Distribución de Tarjetas",
-            color_discrete_sequence=px.colors.sequential.RdBu
-        )
-        fig_tarjetas.update_layout(height=400)
-        st.plotly_chart(fig_tarjetas, use_container_width=True)
-    else:
-        st.info("No hay datos disponibles")
-
-# Row 2: Tendencia de registros
-st.write("**Tendencia de Registros por Mes**")
-df_tendencia = obtener_tendencia_registro()
-if not df_tendencia.empty:
-    fig_tendencia = px.line(
-        df_tendencia,
-        x='mes',
-        y='cantidad',
-        markers=True,
-        title="Crecimiento de Pasajeros",
-        line_shape="spline"
-    )
-    fig_tendencia.update_layout(height=350, hovermode='x unified')
-    fig_tendencia.update_xaxes(title="Fecha")
-    fig_tendencia.update_yaxes(title="Cantidad de Registros")
-    st.plotly_chart(fig_tendencia, use_container_width=True)
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
+if modo_rapido:
+    st.info("Modo rapido activo: los graficos pesados se cargan solo bajo demanda.")
+    cargar_analitica = st.button("📊 Cargar Analitica Completa", key="btn_analitica")
 else:
-    st.info("No hay datos disponibles")
+    cargar_analitica = True
+
+if cargar_analitica:
+    # Row 1: Distribución por país y Segmentación de tarjetas
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.write("**Distribución de Pasajeros por País (Top 15)**")
+        df_paises = obtener_distribucion_paises()
+        if not df_paises.empty:
+            fig_mapa = px.bar(
+                df_paises.head(15),
+                x='cantidad',
+                y='pais',
+                orientation='h',
+                color='cantidad',
+                color_continuous_scale='Viridis',
+                title="Top 15 Países"
+            )
+            fig_mapa.update_layout(height=400, showlegend=False)
+            st.plotly_chart(fig_mapa, use_container_width=True)
+        else:
+            st.info("No hay datos disponibles")
+
+    with col2:
+        st.write("**Segmentación de Mercado por Tarjeta**")
+        df_tarjetas = obtener_segmentacion_tarjetas()
+        if not df_tarjetas.empty:
+            fig_tarjetas = px.pie(
+                df_tarjetas,
+                values='cantidad',
+                names='tipo_tarjeta',
+                title="Distribución de Tarjetas",
+                color_discrete_sequence=px.colors.sequential.RdBu
+            )
+            fig_tarjetas.update_layout(height=400)
+            st.plotly_chart(fig_tarjetas, use_container_width=True)
+        else:
+            st.info("No hay datos disponibles")
+
+    # Row 2: Tendencia de registros
+    st.write("**Tendencia de Registros por Mes**")
+    df_tendencia = obtener_tendencia_registro()
+    if not df_tendencia.empty:
+        fig_tendencia = px.line(
+            df_tendencia,
+            x='mes',
+            y='cantidad',
+            markers=True,
+            title="Crecimiento de Pasajeros",
+            line_shape="spline"
+        )
+        fig_tendencia.update_layout(height=350, hovermode='x unified')
+        fig_tendencia.update_xaxes(title="Fecha")
+        fig_tendencia.update_yaxes(title="Cantidad de Registros")
+        st.plotly_chart(fig_tendencia, use_container_width=True)
+    else:
+        st.info("No hay datos disponibles")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================== SECCIÓN 3: BÚSQUEDA DE PASAJERO ====================
 st.markdown("---")
 st.markdown("### 🔍 Búsqueda de Pasajero")
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
 if email_busqueda:
     with st.spinner("Buscando pasajero..."):
@@ -428,20 +531,30 @@ if email_busqueda:
                 st.write(f"**Fecha Registro:** {pasajero.get('fecha_registro', 'N/A')}")
 else:
     st.info("Ingresa un email en la barra lateral para buscar un pasajero específico")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================== SECCIÓN 4: TABLA DE DATOS FILTRADOS ====================
 st.markdown("---")
 st.markdown("### 📋 Datos Filtrados")
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
 if st.button("🔄 Actualizar Datos", key="refresh_button"):
     st.cache_data.clear()
     st.rerun()
+aplicar_filtros = st.button("✅ Aplicar Filtros", key="apply_filters_button")
+if "mostrar_filtrados" not in st.session_state:
+    st.session_state.mostrar_filtrados = False
+if aplicar_filtros:
+    st.session_state.mostrar_filtrados = True
 
-df_filtrado = obtener_pasajeros_filtrados(
-    paises=paises_seleccionados if paises_seleccionados else None,
-    fecha_inicio=fecha_inicio,
-    fecha_fin=fecha_fin
-)
+df_filtrado = pd.DataFrame()
+if st.session_state.mostrar_filtrados:
+    with st.spinner("Consultando datos filtrados..."):
+        df_filtrado = obtener_pasajeros_filtrados(
+            paises=paises_seleccionados if paises_seleccionados else None,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin
+        )
 
 if not df_filtrado.empty:
     st.write(f"Mostrando {len(df_filtrado)} pasajeros")
@@ -457,7 +570,11 @@ if not df_filtrado.empty:
     
     st.dataframe(df_filtrado, use_container_width=True, height=400)
 else:
-    st.info("No hay pasajeros que coincidan con los filtros seleccionados")
+    if st.session_state.mostrar_filtrados:
+        st.info("No hay pasajeros que coincidan con los filtros seleccionados")
+    else:
+        st.info("Presiona 'Aplicar Filtros' para cargar resultados")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ==================== PIE DE PÁGINA ====================
 st.markdown("---")

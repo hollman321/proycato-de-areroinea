@@ -77,7 +77,19 @@ T = TypeVar('T')
 app = FastAPI(
     title="SkyAnalytics Backend",
     version="1.0.0",
-    description="API para gestionar pasajeros y analytics"
+    description="API para gestionar pasajeros, transacciones y analitica en SkyAnalytics",
+    contact={
+        "name": "Equipo SkyAnalytics",
+        "email": "admin@skyanalytics.com",
+    },
+    license_info={
+        "name": "MIT",
+    },
+    swagger_ui_parameters={
+        "defaultModelsExpandDepth": -1,
+        "displayRequestDuration": True,
+        "tryItOutEnabled": True,
+    },
 )
 
 # Configurar logging
@@ -851,3 +863,51 @@ async def categoria_promedio_por_pais(db: Session = Depends(get_db)):
     return {
         "estadisticas_por_pais": stats_por_pais
     }
+
+
+# ==================== RUTAS DE COMPATIBILIDAD ====================
+# Estas rutas mantienen compatibilidad con clientes que usan el formato REST clásico
+# documentado en README.
+
+@app.get("/pasajeros/{pasajero_id}", response_model=PasajeroResponse, tags=["Pasajeros"])
+async def obtener_pasajero_compat(
+    pasajero_id: int,
+    db: Session = Depends(get_db)
+):
+    return await obtener_pasajero(pasajero_id=pasajero_id, db=db)
+
+
+@app.put("/pasajeros/{pasajero_id}", response_model=PasajeroResponse, tags=["Pasajeros"])
+async def actualizar_pasajero_compat(
+    pasajero_id: int,
+    pasajero_update: PasajeroUpdate,
+    db: Session = Depends(get_db)
+):
+    return await actualizar_pasajero(
+        pasajero_id=pasajero_id,
+        pasajero_update=pasajero_update,
+        db=db
+    )
+
+
+@app.delete("/pasajeros/{pasajero_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Pasajeros"])
+async def eliminar_pasajero_compat(
+    pasajero_id: int,
+    db: Session = Depends(get_db)
+):
+    return await eliminar_pasajero(pasajero_id=pasajero_id, db=db)
+
+
+@app.get("/transacciones/{pasajero_id}", response_model=List[TransaccionResponse], tags=["Transacciones"])
+async def obtener_transacciones_compat(
+    pasajero_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=1000),
+    db: Session = Depends(get_db)
+):
+    return await obtener_historial_transacciones(
+        pasajero_id=pasajero_id,
+        skip=skip,
+        limit=limit,
+        db=db
+    )

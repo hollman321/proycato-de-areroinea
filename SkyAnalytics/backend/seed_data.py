@@ -57,6 +57,12 @@ PAISES_FRECUENTES = [
     "Bolivia", "Paraguay", "Uruguay", "Costa Rica", "Guatemala",
     "Alemania", "Francia", "Italia", "Reino Unido", "Canada",
 ]
+PAISES_WEIGHTS = [
+    30, 25, 15, 10, 8,
+    5, 3, 1, 1, 1,
+    1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1,
+]
 
 CHUNK_SIZE = 50_000  # Procesar 50,000 registros por lote
 BATCH_INSERT_SIZE = 10_000  # Insertar en lotes de 10,000
@@ -94,7 +100,7 @@ def generar_numero_tarjeta():
     return tarjeta_valida
 
 
-def generar_lote_pasajeros(cantidad: int) -> pd.DataFrame:
+def generar_lote_pasajeros(cantidad: int, inicio_global: int = 0) -> pd.DataFrame:
     """
     Genera un lote de registros de pasajeros con datos realistas.
     
@@ -119,8 +125,6 @@ def generar_lote_pasajeros(cantidad: int) -> pd.DataFrame:
     
     logger.info(f"Generando {cantidad:,} registros con Faker...")
     
-    correos_generados = set()  # Para evitar duplicados
-    
     for i in range(cantidad):
         # Mostrar progreso cada 10,000 registros
         if (i + 1) % 10_000 == 0:
@@ -129,12 +133,9 @@ def generar_lote_pasajeros(cantidad: int) -> pd.DataFrame:
         # Nombre
         nombre = FAKE.name()
         
-        # Correo único
-        while True:
-            correo = FAKE.email()
-            if correo not in correos_generados:
-                correos_generados.add(correo)
-                break
+        # Correo unico global por batch+indice para evitar colisiones entre lotes.
+        indice_global = inicio_global + i
+        correo = f"user{indice_global}_{random.randint(1000, 9999)}@example.com"
         
         # Tarjetas de crédito y débito válidas
         tarjeta_credito = generar_numero_tarjeta()
@@ -147,11 +148,7 @@ def generar_lote_pasajeros(cantidad: int) -> pd.DataFrame:
         ciudad = FAKE.city()
         
         # País (con peso en países del corpus)
-        pais = random.choices(
-            PAISES_FRECUENTES,
-            weights=[30, 25, 15, 10, 8, 5, 3, 1, 1, 1, 1],
-            k=1
-        )[0]
+        pais = random.choices(PAISES_FRECUENTES, weights=PAISES_WEIGHTS, k=1)[0]
         
         # Fecha de registro (últimos 2 años)
         fecha_registro = FAKE.date_between(start_date="-2y", end_date="today")
@@ -269,7 +266,7 @@ def cargar_datos(total_registros: int, truncate: bool = False):
             logger.info(f"Progreso: {registros_insertados:,} / {total_registros:,}")
             
             # Generar lote
-            df = generar_lote_pasajeros(cantidad_batch)
+            df = generar_lote_pasajeros(cantidad_batch, inicio_global=registros_insertados)
             
             # Insertar lote
             insertar_con_copy_from(conexion, df, batch_num)
@@ -291,7 +288,10 @@ def cargar_datos(total_registros: int, truncate: bool = False):
         logger.info(f"  Registros insertados: {registros_insertados:,}")
         logger.info(f"  Tiempo total: {tiempo_total:.2f}s")
         logger.info(f"  Velocidad promedio: {velocidad_promedio:.0f} registros/segundo")
-        logger.info(f"  Tiempo estimado para 10M: {10_000_000 / velocidad_promedio / 60:.1f} minutos")
+        if velocidad_promedio > 0:
+            logger.info(f"  Tiempo estimado para 10M: {10_000_000 / velocidad_promedio / 60:.1f} minutos")
+        else:
+            logger.info("  Tiempo estimado para 10M: no disponible (sin registros insertados)")
         logger.info(f"{'='*60}\n")
         
         # Verificar conteo final

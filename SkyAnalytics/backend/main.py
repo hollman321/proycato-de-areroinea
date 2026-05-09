@@ -1,14 +1,74 @@
 from typing import List, Generic, TypeVar, Optional
 from datetime import date, datetime
 from math import ceil
+import logging
+from datetime import timedelta
+import hashlib
+import hmac
 
-from fastapi import FastAPI, Depends, HTTPException, status, Query
+from fastapi import FastAPI, Depends, HTTPException, status, Query, Path
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+from jose import JWTError, jwt
 from models import Pasajero, Transaccion, MillasAcumuladas, CategoriaEnum
 from database import get_db
+from schemas import (
+    PasajeroCreate, PasajeroUpdate, PasajeroResponse,
+    TransaccionCreate, TransaccionResponse, MillasResponse, PerfillPasajero
+)
+
+# ==================== CONFIGURACIÓN JWT ====================
+SECRET_KEY = "your-secret-key-here-change-in-production"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+security = HTTPBearer()
+
+# Usuarios de prueba (en producción usar BD)
+ADMIN_USERS = {
+    "admin@skyanalytics.com": {
+        "password_hash": hashlib.sha256(b"admin123").hexdigest(),
+        "role": "admin"
+    }
+}
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return hmac.compare_digest(hash_password(plain_password), hashed_password)
+
+
+def authenticate_user(email: str, password: str):
+    user = ADMIN_USERS.get(email)
+    if not user:
+        return False
+    if not verify_password(password, user["password_hash"]):
+        return False
+    return user
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=403, detail="Token inválido")
+        return email
+    except JWTError:
+        raise HTTPException(status_code=403, detail="Token inválido o expirado")
 
 # TypeVar para schemas genéricos
 T = TypeVar('T')
@@ -20,6 +80,10 @@ app = FastAPI(
     description="API para gestionar pasajeros y analytics"
 )
 
+# Configurar logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
@@ -28,43 +92,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ==================== PYDANTIC SCHEMAS ====================
-class PasajeroBase(BaseModel):
-    """Schema base para Pasajero (datos comunes)"""
-    nombre_completo: str
-    correo: EmailStr
-    tarjeta_credito: str
-    tarjeta_debito: str
-    direccion: str
-    ciudad: str
-    pais: str
-    fecha_registro: date
-
-
-class PasajeroCreate(PasajeroBase):
-    """Schema para crear un pasajero"""
-    pass
-
-
-class PasajeroUpdate(BaseModel):
-    """Schema para actualizar un pasajero"""
-    nombre_completo: Optional[str] = None
-    correo: Optional[EmailStr] = None
-    tarjeta_credito: Optional[str] = None
-    tarjeta_debito: Optional[str] = None
-    direccion: Optional[str] = None
-    ciudad: Optional[str] = None
-    pais: Optional[str] = None
-
-
-class PasajeroResponse(PasajeroBase):
-    """Schema para respuestas de pasajero"""
-    id: int
-
-    class Config:
-        from_attributes = True
-
 
 # ==================== PAGINACIÓN SCHEMAS ====================
 class PaginationMetadata(BaseModel):
@@ -95,61 +122,6 @@ class PaginatedPasajeros(BaseModel):
     """Respuesta paginada específica para pasajeros"""
     items: List[PasajeroResponse]
     pagination: PaginationMetadata
-
-
-# ==================== TRANSACCIONES Y MILLAS SCHEMAS ====================
-
-class TransaccionCreate(BaseModel):
-    """Schema para crear una transacción"""
-    monto: float
-    descripcion: str = "Transacción general"
-
-
-class TransaccionResponse(BaseModel):
-    """Schema para respuesta de transacción"""
-    id: int
-    pasajero_id: int
-    monto: float
-    millas_ganadas: int
-    descripcion: str
-    fecha_transaccion: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class MillasResponse(BaseModel):
-    """Schema para respuesta de millas acumuladas"""
-    pasajero_id: int
-    millas_totales: int
-    dinero_gastado: float
-    fecha_actualizado: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class PerfillPasajero(BaseModel):
-    """
-    Perfil completo del pasajero con su categorización.
-    
-    Este es el endpoint de "lógica de negocio" que demuestra
-    procesamiento de datos: clasificación automática basada en métricas.
-    """
-    id: int
-    nombre_completo: str
-    correo: str
-    pais: str
-    categoria: str  # PREMIUM, STANDARD, BASICO
-    millas_totales: int
-    dinero_gastado: float
-    numero_transacciones: int
-    
-    # Beneficios según categoría
-    beneficios: List[str]
-    
-    class Config:
-        from_attributes = True
 
 
 # ==================== LÓGICA DE NEGOCIO: CATEGORIZACIÓN ====================
@@ -202,6 +174,37 @@ def obtener_o_crear_millas(pasajero_id: int, db: Session) -> MillasAcumuladas:
     return millas
 
 
+# ==================== AUTH SCHEMAS ====================
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+# ==================== AUTH ENDPOINTS ====================
+@app.post("/auth/login", response_model=TokenResponse, tags=["Auth"])
+async def login(request: LoginRequest):
+    """Autenticar usuario administrador y obtener token JWT"""
+    user = authenticate_user(request.email, request.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": request.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/auth/me", tags=["Auth"])
+async def get_current_user(email: str = Depends(verify_token)):
+    """Obtener información del usuario actual"""
+    return {"email": email, "role": ADMIN_USERS[email]["role"]}
+
 # ==================== ROUTES ====================
 
 @app.get("/", tags=["Health"])
@@ -232,20 +235,31 @@ async def crear_pasajero(
     
     La conexión a BD se abre y cierra automáticamente.
     """
-    # Verificar que no exista un pasajero con el mismo correo
-    db_pasajero = db.query(Pasajero).filter(Pasajero.correo == pasajero.correo).first()
-    if db_pasajero:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El correo ya está registrado"
-        )
+    try:
+        # Verificar que no exista un pasajero con el mismo correo
+        db_pasajero = db.query(Pasajero).filter(Pasajero.correo == pasajero.correo).first()
+        if db_pasajero:
+            logger.warning(f"Intento de crear pasajero con correo duplicado: {pasajero.correo}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El correo ya está registrado"
+            )
 
-    # Crear nuevo pasajero
-    nuevo_pasajero = Pasajero(**pasajero.model_dump())
-    db.add(nuevo_pasajero)
-    db.commit()
-    db.refresh(nuevo_pasajero)
-    return nuevo_pasajero
+        # Crear nuevo pasajero
+        nuevo_pasajero = Pasajero(**pasajero.model_dump())
+        db.add(nuevo_pasajero)
+        db.commit()
+        db.refresh(nuevo_pasajero)
+        logger.info(f"Pasajero creado exitosamente: {nuevo_pasajero.id}")
+        return nuevo_pasajero
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error al crear pasajero: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
+        )
 
 
 @app.get("/pasajeros", response_model=PaginatedPasajeros, tags=["Pasajeros"])
@@ -320,7 +334,7 @@ async def listar_pasajeros(
 
 @app.get("/pasajeros/pagina/{page_number}", response_model=PaginatedPasajeros, tags=["Pasajeros"])
 async def obtener_pagina_pasajeros(
-    page_number: int = Query(..., ge=1, description="Número de página (comienza en 1)"),
+    page_number: int = Path(..., ge=1, description="Número de página (comienza en 1)"),
     page_size: int = Query(50, ge=1, le=1000, description="Registros por página (max: 1000)"),
     db: Session = Depends(get_db)
 ):

@@ -74,13 +74,13 @@ class ValidadorTarjeta:
 
 class PasajeroSchemaBase(BaseModel):
     """Schema base con validaciones"""
-    nombre_completo: constr(min_length=3, max_length=100)  # Entre 3 y 100 caracteres
+    nombre_completo: constr(min_length=3, max_length=100)  # pyright: ignore[reportInvalidTypeForm] # Entre 3 y 100 caracteres
     correo: EmailStr  # Validación automática de email
-    tarjeta_credito: constr(min_length=13, max_length=19)
-    tarjeta_debito: constr(min_length=13, max_length=19)
-    direccion: constr(min_length=5, max_length=255)
-    ciudad: constr(min_length=2, max_length=100)
-    pais: constr(min_length=2, max_length=100)
+    tarjeta_credito: constr(min_length=13, max_length=19) # type: ignore
+    tarjeta_debito: constr(min_length=13, max_length=19) # type: ignore
+    direccion: constr(min_length=5, max_length=255) # type: ignore
+    ciudad: constr(min_length=2, max_length=100) # type: ignore
+    pais: constr(min_length=2, max_length=100) # type: ignore
     fecha_registro: date
     
     @field_validator("nombre_completo")

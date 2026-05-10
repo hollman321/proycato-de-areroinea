@@ -804,8 +804,8 @@ def login_page():
             </div>
         </div>
         """, unsafe_allow_html=True)
-
-        with st.form("login_form"):
+    
+    with st.form("login_form"):
 
             email = st.text_input(
                 "Email",
@@ -820,7 +820,7 @@ def login_page():
             submitted = st.form_submit_button(
                 "Iniciar sesion"
             )
-
+        
         if submitted:
 
             token = authenticate_user(email, password)
@@ -845,21 +845,21 @@ if not check_auth():
 @st.cache_data(ttl=300)
 def obtener_estadisticas_generales():
 
-    engine = get_db_connection()
+        engine = get_db_connection()
 
     query = """
-        SELECT
-            COUNT(*) as total_pasajeros,
+                SELECT 
+                    COUNT(*) as total_pasajeros,
             COUNT(DISTINCT pais) as paises,
             COUNT(DISTINCT ciudad) as ciudades
-        FROM pasajeros
+                FROM pasajeros
     """
 
     with engine.connect() as conn:
         result = conn.execute(text(query))
-        row = result.fetchone()
+            row = result.fetchone()
 
-    return {
+                return {
         "total": row[0],
         "paises": row[1],
         "ciudades": row[2]
@@ -868,13 +868,13 @@ def obtener_estadisticas_generales():
 @st.cache_data(ttl=300)
 def obtener_distribucion_paises():
 
-    engine = get_db_connection()
+        engine = get_db_connection()
 
-    query = """
-        SELECT pais, COUNT(*) as cantidad
-        FROM pasajeros
-        GROUP BY pais
-        ORDER BY cantidad DESC
+        query = """
+            SELECT pais, COUNT(*) as cantidad
+            FROM pasajeros
+            GROUP BY pais
+            ORDER BY cantidad DESC
         LIMIT 15
     """
 
@@ -883,13 +883,13 @@ def obtener_distribucion_paises():
 @st.cache_data(ttl=300)
 def obtener_tendencia():
 
-    engine = get_db_connection()
+        engine = get_db_connection()
 
-    query = """
-        SELECT
+        query = """
+            SELECT 
             DATE_TRUNC('month', fecha_registro)::DATE as mes,
-            COUNT(*) as cantidad
-        FROM pasajeros
+                COUNT(*) as cantidad
+            FROM pasajeros
         GROUP BY DATE_TRUNC('month', fecha_registro)
         ORDER BY mes
     """
@@ -903,46 +903,46 @@ def obtener_pasajeros_filtrados(
     fecha_fin=None
 ):
 
-    engine = get_db_connection()
+        engine = get_db_connection()
 
-    query = """
-        SELECT *
-        FROM pasajeros
-        WHERE 1=1
-    """
+        query = """
+            SELECT *
+            FROM pasajeros
+            WHERE 1=1
+        """
 
-    params = {}
+        params = {}
 
     if paises:
-        query += " AND pais IN :paises"
-        params["paises"] = tuple(paises)
+            query += " AND pais IN :paises"
+            params["paises"] = tuple(paises)
 
-    if fecha_inicio:
-        query += " AND fecha_registro >= :fecha_inicio"
-        params["fecha_inicio"] = fecha_inicio
+        if fecha_inicio:
+            query += " AND fecha_registro >= :fecha_inicio"
+            params["fecha_inicio"] = fecha_inicio
 
-    if fecha_fin:
-        query += " AND fecha_registro <= :fecha_fin"
-        params["fecha_fin"] = fecha_fin
+        if fecha_fin:
+            query += " AND fecha_registro <= :fecha_fin"
+            params["fecha_fin"] = fecha_fin
 
     query += " LIMIT 1000"
 
-    sql_query = text(query)
+        sql_query = text(query)
 
     if paises:
         sql_query = sql_query.bindparams(
             bindparam("paises", expanding=True)
         )
 
-    with engine.connect() as conn:
-        result = conn.execute(sql_query, params)
+        with engine.connect() as conn:
+            result = conn.execute(sql_query, params)
 
         df = pd.DataFrame(
             result.fetchall(),
             columns=result.keys()
         )
 
-    return df
+        return df
 
 # =========================
 # UI HELPERS
@@ -1056,12 +1056,12 @@ paises_seleccionados = st.sidebar.multiselect(
 )
 
 fecha_inicio = st.sidebar.date_input(
-    "Desde",
+        "Desde",
     datetime.now() - timedelta(days=365)
-)
+    )
 
 fecha_fin = st.sidebar.date_input(
-    "Hasta",
+        "Hasta",
     datetime.now()
 )
 
@@ -1074,8 +1074,8 @@ st.markdown('<div class="section-header"><span><i class="fa-solid fa-gauge-high"
 stats = obtener_estadisticas_generales()
 
 col1, col2, col3 = st.columns(3)
-
-with col1:
+    
+    with col1:
     render_kpi_card(
         "Pasajeros",
         f"{stats['total']:,}",
@@ -1083,9 +1083,9 @@ with col1:
         "primary",
         "fa-users",
         92
-    )
-
-with col2:
+        )
+    
+    with col2:
     render_kpi_card(
         "Paises",
         f"{stats['paises']:,}",
@@ -1093,12 +1093,12 @@ with col2:
         "warning",
         "fa-earth-americas",
         68
-    )
-
-with col3:
+        )
+    
+    with col3:
     render_kpi_card(
         "Ciudades",
-        f"{stats['ciudades']:,}",
+            f"{stats['ciudades']:,}",
         "Nodos urbanos detectados",
         "slate",
         "fa-city",
@@ -1111,11 +1111,11 @@ with col3:
 
 st.markdown('<div class="section-header"><span><i class="fa-solid fa-chart-area"></i>Distribucion y tendencia</span></div>', unsafe_allow_html=True)
 
-col1, col2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-with col1:
+    with col1:
 
-    df_paises = obtener_distribucion_paises()
+        df_paises = obtener_distribucion_paises()
 
     fig = px.bar(
         df_paises,
@@ -1195,13 +1195,13 @@ with col2:
 
 st.markdown('<div class="section-header"><span><i class="fa-solid fa-table-list"></i>Datos filtrados</span></div>', unsafe_allow_html=True)
 
-df_filtrado = obtener_pasajeros_filtrados(
+        df_filtrado = obtener_pasajeros_filtrados(
     paises=paises_seleccionados,
-    fecha_inicio=fecha_inicio,
-    fecha_fin=fecha_fin
-)
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin
+        )
 
-csv = df_filtrado.to_csv(index=False)
+    csv = df_filtrado.to_csv(index=False)
 
 st.markdown(f"""
 <div class="table-toolbar">
@@ -1209,7 +1209,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-st.download_button(
+    st.download_button(
     "Descargar CSV",
     csv,
     "pasajeros.csv",
@@ -1229,5 +1229,5 @@ st.dataframe(
 st.markdown("""
 <div class="sk-footer">
 SkyAnalytics Dashboard - Operational Edition
-</div>
+    </div>
 """, unsafe_allow_html=True)

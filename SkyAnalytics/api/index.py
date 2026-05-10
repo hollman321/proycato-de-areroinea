@@ -12,3 +12,4 @@ for _path in (PROJECT_ROOT, BACKEND_DIR):
         sys.path.insert(0, _path)
 
 from main import app  # noqa: E402
+

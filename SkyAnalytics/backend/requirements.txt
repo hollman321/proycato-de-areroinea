@@ -9,6 +9,7 @@ pydantic[email]
 python-dotenv
 python-multipart
 python-jose[cryptography]
+passlib[bcrypt]
 redis
 pytest
 httpx

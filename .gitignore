@@ -1,0 +1,16 @@
+# Entornos virtuales y cachés
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.Python
+*.egg-info/
+.eggs/
+
+# Entorno local
+.env
+*.local
+
+# IDE
+.idea/
+.vscode/

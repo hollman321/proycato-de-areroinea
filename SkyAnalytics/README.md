@@ -18,16 +18,17 @@ Sistema de análisis de datos para aerolíneas que gestiona perfiles de pasajero
 ### Pasos de Instalación
 
 1. **Clonar el repositorio** (o descomprimir el proyecto)
-2. **Configurar variables de entorno**: El archivo `.env` ya está configurado con valores por defecto
+2. **Variables de entorno**: copia `.env.example` a `.env` y ajusta `SECRET_KEY` y URLs si despliegas fuera de Docker.
 3. **Levantar los servicios**:
    ```bash
    docker-compose up --build
    ```
-4. **Esperar la carga inicial**: El sistema cargará automáticamente 10,000,000 de registros de prueba
+   El contenedor del backend ejecuta `alembic upgrade head`, `scripts/seed_admin.py` (usuario demo) y arranca Uvicorn.
+4. **Carga masiva opcional de datos**: sigue `backend/GUIA_CARGA_MASIVA.md` / `seed_data.py` si necesitas millones de filas de prueba.
 5. **Acceder a los servicios**:
-   - Backend API: http://localhost:8000/docs (Swagger UI)
-   - Dashboard: http://localhost:8501
-   - pgAdmin: http://localhost:5050 (usuario: admin@skyanalytics.com, pass: admin123)
+   - API: http://localhost:8000/docs (Swagger)
+   - Dashboard: http://localhost:8501  
+   - **Login demo**: `admin@skyanalytics.com` / `admin123` (creado por `seed_admin` si la tabla `users` estaba vacía). También puedes registrarte desde la pestaña «Crear cuenta».
 
 ## KPIs y Métricas del Dashboard
 
@@ -79,38 +80,45 @@ El dashboard muestra métricas clave para el negocio de la aerolínea:
 
 ```
 SkyAnalytics/
-├── backend/                 # API FastAPI
-│   ├── main.py             # Endpoints principales
-│   ├── models.py           # Modelos SQLAlchemy
-│   ├── schemas.py          # Validaciones Pydantic
-│   ├── database.py         # Configuración BD
-│   ├── requirements.txt    # Dependencias Python
-│   └── Dockerfile          # Contenedor Backend
-├── dashboard/              # Dashboard Streamlit
-│   ├── app.py              # Aplicación principal
-│   ├── requirements.txt    # Dependencias
-│   └── Dockerfile          # Contenedor Dashboard
-├── docker-compose.yml      # Orquestación de servicios
-├── .env                    # Variables de entorno
-└── README.md               # Esta documentación
+├── backend/
+│   ├── main.py              # Instancia FastAPI (ensambla routers)
+│   ├── database.py          # Engine, sesión, create_all opcional
+│   ├── deps.py              # JWT → usuario activo
+│   ├── core/                # settings, JWT helpers, hashing
+│   ├── models/              # ORM (pasajeros, users, millas, …)
+│   ├── schemas/             # Pydantic por dominio
+│   ├── routers/             # health, auth, analytics, pasajeros, estadísticas
+│   ├── services/            # reglas de negocio (auth, categorías, analytics)
+│   ├── middleware/          # logging + errores globales
+│   ├── scripts/seed_admin.py
+│   └── alembic/             # migraciones PostgreSQL
+├── dashboard/
+│   ├── app.py, theme.py, api_client.py
+│   └── Dockerfile
+├── docker-compose.yml
+├── .env.example
+└── README.md
 ```
 
-## API Endpoints
+## API (resumen)
 
-### Pasajeros
-- `POST /pasajeros` - Crear pasajero
-- `GET /pasajeros` - Listar con paginación
-- `GET /pasajeros/{id}` - Obtener por ID
-- `PUT /pasajeros/{id}` - Actualizar pasajero
-- `DELETE /pasajeros/{id}` - Eliminar pasajero
+Todas las rutas de negocio requieren cabecera `Authorization: Bearer <token>` salvo `/`, `/health`, `/auth/login`, `/auth/register`, `/auth/forgot-password`.
 
-### Transacciones
-- `POST /transacciones` - Crear transacción
-- `GET /transacciones/{pasajero_id}` - Transacciones por pasajero
+### Auth
+- `POST /auth/login` — body: `email`, `password`, `remember_me`
+- `POST /auth/register`
+- `GET /auth/me`
+- `POST /auth/logout` (informativo; el token se invalida en cliente)
+- `POST /auth/forgot-password` (respuesta genérica; listo para integrar email)
 
-### Analytics
-- `GET /analytics/perfil/{id}` - Perfil completo con categorización
-- `GET /analytics/kpis` - KPIs generales
+### Analytics (dashboard)
+- `GET /analytics/resumen`
+- `GET /analytics/por-pais`
+- `GET /analytics/tendencia-mensual`
+- `GET /analytics/pasajeros` — paginación por `cursor` + `q` + filtros de fecha/país
+
+### Pasajeros / transacciones
+- CRUD bajo `/pasajeros`, perfil `/pasajeros/perfil/{id}`, transacciones `/pasajeros/{id}/transacciones` y ruta de compatibilidad `/transacciones/{pasajero_id}`.
 
 ## 🚀 Despliegue en la Nube
 

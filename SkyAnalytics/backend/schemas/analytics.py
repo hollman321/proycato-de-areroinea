@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from schemas.pasajero import PasajeroResponse
 
@@ -34,6 +34,42 @@ class MesCantidad(BaseModel):
 
 
 class ResumenAnalytics(BaseModel):
+    """KPIs alineados a reglas SkyAnalytics (caché 30s aplicada en el router)."""
+
     total_pasajeros: int
-    paises_unicos: int
-    ciudades_unicas: int
+    paises_cobertura_activa_30d: int = Field(
+        ..., description="Países con ≥1 pasajero en los últimos 30 días (fecha_registro)"
+    )
+    paises_historico_distintos: int = Field(..., description="Países distintos en toda la historia cargada")
+    ciudades_nodos_urbanos: int = Field(..., description="Ciudades distintas con al menos un pasajero")
+    cobertura_activa_dias: int = 30
+    fecha_consulta: date
+    generated_at: datetime
+    cache_ttl_seconds: int = 30
+
+
+class AirportReference(BaseModel):
+    """Registro de la tabla de referencia IATA / OurAirports."""
+
+    id: int
+    iata_code: Optional[str] = None
+    icao_code: Optional[str] = None
+    name: str
+    city: Optional[str] = None
+    country_iso: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    airport_type: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class GeoValidateResponse(BaseModel):
+    """Validación ligera ciudad ↔ país ISO contra referencia de aeropuertos."""
+
+    ciudad: str
+    country_iso: str
+    match_count: int
+    consistente: bool
+    muestra_iata: List[str] = Field(default_factory=list, description="Hasta 5 códigos IATA de ejemplo")

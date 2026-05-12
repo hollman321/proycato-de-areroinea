@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -14,31 +14,52 @@ from models.user import User
 from schemas.analytics import CursorPasajerosResponse, MesCantidad, PaisCantidad, ResumenAnalytics
 from schemas.pasajero import PasajeroResponse
 from services import analytics_service
+from services.analytics_cache import cache_ttl_seconds
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
 @router.get("/resumen", response_model=ResumenAnalytics)
-async def analytics_resumen(_: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    data = analytics_service.resumen(db)
-    return ResumenAnalytics(**data)
+async def analytics_resumen(
+    response: Response,
+    _: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+):
+    t0 = time.perf_counter()
+    raw = analytics_service.resumen_cached(db)
+    payload = {**raw, "cache_ttl_seconds": cache_ttl_seconds()}
+    if time.perf_counter() - t0 > 2.0:
+        response.headers["X-SkyAnalytics-Slow-Query"] = "1"
+    return ResumenAnalytics(**payload)
 
 
 @router.get("/por-pais", response_model=List[PaisCantidad])
 async def analytics_por_pais(
+    response: Response,
     limit: int = Query(15, ge=1, le=100),
+    fecha_inicio: Optional[date] = Query(None, description="Inicio período (inclusive) para top países"),
+    fecha_fin: Optional[date] = Query(None, description="Fin período (inclusive)"),
     _: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    return [PaisCantidad(**row) for row in analytics_service.por_pais(db, limit=limit)]
+    t0 = time.perf_counter()
+    rows = analytics_service.por_pais_cached(db, limit, fecha_inicio, fecha_fin)
+    if time.perf_counter() - t0 > 2.0:
+        response.headers["X-SkyAnalytics-Slow-Query"] = "1"
+    return [PaisCantidad(**row) for row in rows]
 
 
 @router.get("/tendencia-mensual", response_model=List[MesCantidad])
 async def analytics_tendencia(
+    response: Response,
     _: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    return [MesCantidad(**row) for row in analytics_service.tendencia_mensual(db)]
+    t0 = time.perf_counter()
+    rows = analytics_service.tendencia_mensual_cached(db)
+    if time.perf_counter() - t0 > 2.0:
+        response.headers["X-SkyAnalytics-Slow-Query"] = "1"
+    return [MesCantidad(**row) for row in rows]
 
 
 @router.get("/pasajeros", response_model=CursorPasajerosResponse)

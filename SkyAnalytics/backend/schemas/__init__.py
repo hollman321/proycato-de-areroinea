@@ -2,7 +2,14 @@
 Schemas Pydantic: reexportamos todo para compatibilidad con `from schemas import X`.
 """
 
-from schemas.analytics import CursorPasajerosResponse, MesCantidad, PaisCantidad, ResumenAnalytics
+from schemas.analytics import (
+    AirportReference,
+    CursorPasajerosResponse,
+    GeoValidateResponse,
+    MesCantidad,
+    PaisCantidad,
+    ResumenAnalytics,
+)
 from schemas.auth import (
     ForgotPasswordRequest,
     ForgotPasswordResponse,
@@ -26,7 +33,9 @@ from schemas.pasajero import (
 )
 
 __all__ = [
+    "AirportReference",
     "CursorPasajerosResponse",
+    "GeoValidateResponse",
     "ForgotPasswordRequest",
     "ForgotPasswordResponse",
     "LoginRequest",

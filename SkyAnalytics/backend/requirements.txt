@@ -13,3 +13,4 @@ passlib[bcrypt]
 redis
 pytest
 httpx
+requests

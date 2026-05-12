@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -12,7 +10,7 @@ from database import get_db
 from deps import get_current_active_user
 from models.pasajero import Pasajero
 from models.user import User
-from services import categoria_service
+from services import analytics_service, categoria_service
 
 router = APIRouter(tags=["Estadísticas"])
 
@@ -37,15 +35,8 @@ async def estadisticas_por_pais(_: User = Depends(get_current_active_user), db: 
 
 @router.get("/estadisticas/resumen")
 async def resumen_estadisticas(_: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    total = db.query(Pasajero).count()
-    paises_unicos = db.query(func.count(func.distinct(Pasajero.pais))).scalar()
-    ciudades_unicas = db.query(func.count(func.distinct(Pasajero.ciudad))).scalar()
-    return {
-        "total_pasajeros": total,
-        "paises_unicos": paises_unicos,
-        "ciudades_unicas": ciudades_unicas,
-        "fecha_consulta": date.today(),
-    }
+    # Misma lógica y caché 30s que GET /analytics/resumen (dict crudo sin schema Pydantic).
+    return analytics_service.resumen_cached(db)
 
 
 @router.get("/estadisticas/categorias")

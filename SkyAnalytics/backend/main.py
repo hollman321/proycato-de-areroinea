@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 from middleware.errors import register_exception_handlers
 from middleware.logging_middleware import RequestLoggingMiddleware
-from routers import analytics, auth, estadisticas, health, pasajeros
+from routers import analytics, auth, estadisticas, health, pasajeros, reference
 
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO))
 
@@ -49,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics.router)
     app.include_router(estadisticas.router)
     app.include_router(pasajeros.router)
+    app.include_router(reference.router)
 
     return app
 

@@ -188,22 +188,34 @@ def page_dashboard() -> None:
     paises = api_get_json(API_BASE_URL, token, "/analytics/por-pais", {"limit": 15})
     tend = api_get_json(API_BASE_URL, token, "/analytics/tendencia-mensual")
 
+    ttl = res.get("cache_ttl_seconds", 30)
+    dias = res.get("cobertura_activa_dias", 30)
+    hist_paises = res.get("paises_historico_distintos", 0)
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(
-            f'<div class="kpi"><div class="kpi-label">Pasajeros</div><div class="kpi-value">{res["total_pasajeros"]:,}</div></div>',
+            f'<div class="kpi"><div class="kpi-label">Volumen total</div><div class="kpi-value">{res["total_pasajeros"]:,}</div>'
+            f'<div class="kpi-caption">Registros en base operativa</div></div>',
             unsafe_allow_html=True,
         )
     with c2:
         st.markdown(
-            f'<div class="kpi"><div class="kpi-label">Países</div><div class="kpi-value">{res["paises_unicos"]:,}</div></div>',
+            f'<div class="kpi"><div class="kpi-label">Países (cobertura activa)</div>'
+            f'<div class="kpi-value">{res["paises_cobertura_activa_30d"]:,}</div>'
+            f'<div class="kpi-caption">≥1 pasajero en últimos {dias} días · histórico: {hist_paises:,} países</div></div>',
             unsafe_allow_html=True,
         )
     with c3:
         st.markdown(
-            f'<div class="kpi"><div class="kpi-label">Ciudades</div><div class="kpi-value">{res["ciudades_unicas"]:,}</div></div>',
+            f'<div class="kpi"><div class="kpi-label">Ciudades (nodos)</div>'
+            f'<div class="kpi-value">{res["ciudades_nodos_urbanos"]:,}</div>'
+            f'<div class="kpi-caption">Ciudades distintas con actividad</div></div>',
             unsafe_allow_html=True,
         )
+    st.caption(
+        f"SkyAnalytics Operational Intelligence — KPIs con caché de API {ttl}s (no fuerces refrescos más rápidos en el cliente)."
+    )
 
     st.markdown('<div class="section-title">Distribución y tendencia</div>', unsafe_allow_html=True)
     df_p = pd.DataFrame(paises)

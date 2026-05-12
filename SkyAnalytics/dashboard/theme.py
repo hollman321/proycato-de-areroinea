@@ -98,6 +98,7 @@ def build_css(*, dark: bool) -> str:
       }}
       .kpi-label {{ color: var(--muted); font-size: 0.68rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }}
       .kpi-value {{ font-size: 1.85rem; font-weight: 800; margin-top: 0.5rem; color: var(--text); }}
+      .kpi-caption {{ font-size: 0.78rem; color: var(--muted); margin-top: 0.45rem; font-weight: 600; }}
       .section-title {{
         font-size: 0.78rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
         color: var(--muted); margin: 1.25rem 0 0.75rem;

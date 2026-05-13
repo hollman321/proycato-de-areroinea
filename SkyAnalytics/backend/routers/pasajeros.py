@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from math import ceil
 from typing import List
 
@@ -250,7 +250,7 @@ async def registrar_transaccion(
     millas = categoria_service.obtener_o_crear_millas(pasajero_id, db)
     millas.millas_totales += millas_ganadas
     millas.dinero_gastado += transaccion.monto
-    millas.fecha_actualizado = datetime.utcnow()
+    millas.fecha_actualizado = datetime.now(timezone.utc)
     db.commit()
     db.refresh(nueva)
     return nueva

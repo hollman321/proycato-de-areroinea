@@ -4,7 +4,7 @@ Usuario de la plataforma (login SaaS).
 Separado de Pasajero: aquí autentican analistas/ops, no clientes finales del vuelo.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String
 
@@ -20,4 +20,4 @@ class User(Base):
     full_name = Column(String(255), nullable=True)
     role = Column(String(32), nullable=False, default="viewer")
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

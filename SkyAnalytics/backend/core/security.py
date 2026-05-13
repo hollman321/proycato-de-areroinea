@@ -6,7 +6,7 @@ JWT es stateless: el "logout" real implica olvidar el token en el cliente o usar
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from jose import jwt
@@ -37,7 +37,7 @@ def create_access_token(
     else:
         delta = timedelta(minutes=settings.access_token_expire_minutes)
 
-    expire = datetime.utcnow() + delta
+    expire = datetime.now(timezone.utc) + delta
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire}
     if extra_claims:
         to_encode.update(extra_claims)

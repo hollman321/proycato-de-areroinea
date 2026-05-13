@@ -1,6 +1,6 @@
 """Modelos de dominio: pasajeros, transacciones y millas."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, Date, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
@@ -42,7 +42,7 @@ class Transaccion(Base):
     monto = Column(Float, nullable=False)
     millas_ganadas = Column(Integer, default=0)
     descripcion = Column(String)
-    fecha_transaccion = Column(DateTime, default=datetime.utcnow)
+    fecha_transaccion = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     pasajero = relationship("Pasajero", back_populates="transacciones")
 
@@ -56,7 +56,11 @@ class MillasAcumuladas(Base):
     pasajero_id = Column(Integer, ForeignKey("pasajeros.id"), unique=True, nullable=False)
     millas_totales = Column(Integer, default=0)
     dinero_gastado = Column(Float, default=0)
-    fecha_actualizado = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    fecha_actualizado = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
     pasajero = relationship("Pasajero", back_populates="millas")
 

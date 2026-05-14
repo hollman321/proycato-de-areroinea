@@ -1,39 +1,45 @@
 """
-Caché en memoria para agregados del dashboard (ventana 30s).
+Caché Redis para agregados del dashboard (ventana 30s).
 
-Regla de negocio: no recalcular KPIs pesados más de una vez cada 30 segundos por clave lógica.
-No sustituye Redis en multi-instancia; para un solo worker de API es suficiente.
+Soporta multi-instancia con Redis centralizado.
 """
 
 from __future__ import annotations
 
-import time
+import json
+import os
 from typing import Any, Callable, TypeVar
+
+import redis
 
 T = TypeVar("T")
 
 # Segundos — alineado con especificación SkyAnalytics Operational Intelligence
-TTL_SECONDS = 30.0
+TTL_SECONDS = 30
 
-_store: dict[str, tuple[float, Any]] = {}
+# Conexión Redis
+redis_client = redis.Redis(
+    host=os.getenv("REDIS_HOST", "redis"),
+    port=int(os.getenv("REDIS_PORT", "6379")),
+    db=int(os.getenv("REDIS_DB", "0")),
+    decode_responses=True,
+)
 
 
 def get_cached(key: str, factory: Callable[[], T]) -> T:
     """
-    Devuelve `factory()` si la clave expiró o no existe; si no, devuelve el valor cacheado.
+    Devuelve `factory()` si la clave expiró o no existe; si no, devuelve el valor cacheado desde Redis.
 
     `factory` debe ser barato de construir en cierre; típicamente llama consultas SQL con la sesión ya abierta.
     """
-    now = time.monotonic()
-    entry = _store.get(key)
-    if entry is not None:
-        ts, val = entry
-        if now - ts < TTL_SECONDS:
-            return val
+    cached = redis_client.get(key)
+    if cached:
+        return json.loads(cached)
+
     val = factory()
-    _store[key] = (now, val)
+    redis_client.setex(key, TTL_SECONDS, json.dumps(val))
     return val
 
 
 def cache_ttl_seconds() -> int:
-    return int(TTL_SECONDS)
+    return TTL_SECONDS

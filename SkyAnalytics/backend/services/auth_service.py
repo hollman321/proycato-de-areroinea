@@ -7,6 +7,7 @@ Mantiene un admin por defecto para entornos demo (misma credencial que documenta
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -16,8 +17,8 @@ from models.user import User
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ADMIN_EMAIL = "admin@skyanalytics.com"
-DEFAULT_ADMIN_PASSWORD = "admin123"
+DEFAULT_ADMIN_EMAIL = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@skyanalytics.com")
+DEFAULT_ADMIN_PASSWORD = os.getenv("DEFAULT_ADMIN_PASSWORD")
 
 
 def normalize_email(email: str) -> str:
@@ -61,11 +62,11 @@ def create_user(
 
 def ensure_default_admin(db: Session) -> None:
     """
-    Si no hay usuarios, crea el admin demo (idempotente).
+    Si no hay usuarios y DEFAULT_ADMIN_PASSWORD está definido, crea el admin demo (idempotente).
 
     Útil en Docker el primer arranque sin pasos manuales.
     """
-    if db.query(User).first() is not None:
+    if db.query(User).first() is not None or not DEFAULT_ADMIN_PASSWORD:
         return
     create_user(
         db,

@@ -1,52 +1,119 @@
-# SkyAnalytics
+# SkyAnalytics Operational Intelligence
 
-Sistema de análisis de datos para aerolíneas que gestiona perfiles de pasajeros, transacciones y millas acumuladas. Diseñado para manejar volúmenes masivos de datos (10M+ registros) con alta performance y escalabilidad.
+Plataforma SaaS empresarial de análisis operacional para aerolíneas. Gestiona perfiles de pasajeros (10M+ registros), transacciones, millas acumuladas y proporciona dashboards interactivos en tiempo real.
 
 ## Arquitectura
 
+- **Frontend**: Next.js 15 con TypeScript, TailwindCSS, Framer Motion
 - **Backend**: API REST con FastAPI, PostgreSQL y SQLAlchemy
-- **Dashboard**: Interfaz de visualización con Streamlit
-- **Base de Datos**: PostgreSQL con índices optimizados
+- **Dashboard Legacy**: Interfaz de visualización con Streamlit (opcional)
+- **Base de Datos**: PostgreSQL con índices optimizados y Redis para caché
 - **Contenerización**: Docker multi-servicio con docker-compose
+- **DevOps**: Rate limiting, health checks, monitoring básico
+
+## Stack Tecnológico
+
+### Frontend
+- Next.js 15 (App Router)
+- TypeScript
+- TailwindCSS
+- Framer Motion (animaciones)
+- Recharts (gráficas)
+- Zustand (state management)
+- React Query (data fetching)
+- Axios (HTTP client)
+
+### Backend
+- FastAPI
+- PostgreSQL
+- SQLAlchemy ORM
+- Redis (caché distribuido)
+- JWT Authentication
+- SlowAPI (rate limiting)
+- Pydantic (validación)
+
+### DevOps
+- Docker & Docker Compose
+- Alembic (migrations)
+- pgAdmin (DB admin)
+- Health checks automáticos
 
 ## Instalación y Configuración
 
 ### Prerrequisitos
 - Docker y Docker Compose instalados
-- Puerto 8000 (Backend), 8501 (Dashboard), 5432 (DB), 5050 (pgAdmin) disponibles
+- Puertos disponibles: 3000 (Frontend), 8000 (Backend), 5432 (DB), 6379 (Redis), 5050 (pgAdmin)
 
 ### Pasos de Instalación
 
 1. **Clonar el repositorio** (o descomprimir el proyecto)
-2. **Variables de entorno**: copia `.env.example` a `.env` y ajusta `SECRET_KEY` y URLs si despliegas fuera de Docker.
+2. **Variables de entorno**: El archivo `.env` ya está configurado para desarrollo local
 3. **Levantar los servicios**:
    ```bash
    docker-compose up --build
    ```
-   El contenedor del backend ejecuta `alembic upgrade head`, `scripts/seed_admin.py` (usuario demo) y arranca Uvicorn.
-4. **Carga masiva opcional de datos**: sigue `backend/GUIA_CARGA_MASIVA.md` / `seed_data.py` si necesitas millones de filas de prueba.
-5. **Acceder a los servicios**:
-   - API: http://localhost:8000/docs (Swagger)
-   - Dashboard: http://localhost:8501  
-   - **Login demo**: `admin@skyanalytics.com` / `admin123` (creado por `seed_admin` si la tabla `users` estaba vacía). También puedes registrarte desde la pestaña «Crear cuenta».
+   Los contenedores ejecutan automáticamente migraciones, seed de admin y levantan los servicios.
 
-## KPIs y Métricas del Dashboard
+4. **Acceder a los servicios**:
+   - **Frontend**: http://localhost:3000 (Next.js app)
+   - **API**: http://localhost:8000/docs (Swagger)
+   - **Dashboard Legacy**: http://localhost:8501 (opcional, ejecutar con `docker-compose --profile legacy up`)
+   - **pgAdmin**: http://localhost:5050 (admin@skyanalytics.com / admin123)
 
-El dashboard muestra métricas clave para el negocio de la aerolínea:
+5. **Login demo**: `admin@skyanalytics.com` / `admin123`
 
-- **Distribución de Categorías**: Proporción de pasajeros Premium, Standard y Básico
-- **Top Países**: Países con mayor número de pasajeros registrados
-- **Millas Acumuladas**: Total de millas generadas por transacciones
-- **Dinero Gastado**: Ingresos totales por transacciones
-- **Tendencias Temporales**: Evolución de registros por fecha
+## Características Principales
 
-### Importancia de los KPIs
-- **Categorización**: Permite segmentar clientes para estrategias de marketing personalizadas
-- **Geografía**: Identifica mercados potenciales y optimiza rutas
-- **Lealtad**: Las millas acumuladas miden engagement y retención de clientes
-- **Ingresos**: Seguimiento de revenue por transacciones
+### 🔐 Autenticación y Autorización
+- Login/Register con JWT
+- Roles: Admin, Supervisor, Cliente
+- Protección de rutas
+- Refresh tokens
+- Persistencia de sesión
 
-## Manejo de Volumen Masivo (10M Registros)
+### 📊 Dashboard Interactivo
+- KPIs animados en tiempo real
+- Gráficas interactivas (Recharts)
+- Filtros globales dinámicos
+- Estadísticas por país, género, fechas
+- Heatmaps y tendencias
+
+### 🗺️ Mapas y Georreferenciación
+- Mapas interactivos con Leaflet
+- Recorridos en tiempo real
+- Heatmaps geográficos
+- Marcadores dinámicos
+
+### 💎 Sistema de Descuentos
+- Niveles: Bronce, Plata, Oro, Platino
+- Progress bars animados
+- Beneficios automáticos
+- Badges y notificaciones
+
+### 📋 Tablas Enterprise
+- Paginación, ordenamiento, filtros
+- Búsqueda en tiempo real
+- Export CSV/Excel/PDF
+- Acciones masivas
+- Selección múltiple
+
+### 🎯 Perfil de Usuario
+- Gestión completa de perfiles
+- Historial de viajes
+- Estadísticas personales
+- Configuración de privacidad
+
+## KPIs y Métricas
+
+- **Usuarios Activos**: Seguimiento de engagement
+- **Viajes Completados/Cancelados**: Eficiencia operacional
+- **Ingresos Totales**: Revenue tracking
+- **Clientes Frecuentes**: Lealtad y retención
+- **Tiempo Promedio**: Optimización de procesos
+- **Rutas Populares**: Planificación estratégica
+- **País Más Activo**: Expansión de mercado
+
+## Manejo de Volumen Masivo (10M+ Registros)
 
 ### Optimizaciones Implementadas
 

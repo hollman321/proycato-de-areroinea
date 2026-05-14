@@ -12,6 +12,7 @@ python-jose[cryptography]
 passlib[argon2]>=1.7.4
 argon2-cffi>=21.3.0
 redis
+slowapi
 pytest
 httpx
 requests

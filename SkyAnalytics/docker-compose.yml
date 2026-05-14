@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -13,6 +11,17 @@ services:
       db:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    depends_on:
+      - backend
+
   dashboard:
     build:
       context: .
@@ -23,6 +32,8 @@ services:
       - .env
     depends_on:
       - backend
+    profiles:
+      - legacy
 
   db:
     image: postgres:15

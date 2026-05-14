@@ -12,18 +12,27 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import NullPool
-import dotenv
+from dotenv import load_dotenv
 
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_BACKEND_DIR)
-# Despliegue: cwd puede no ser la raíz del repo; cargar .env desde SkyAnalytics/
-dotenv.load_dotenv(os.path.join(_PROJECT_ROOT, ".env"))
-dotenv.load_dotenv()
+
+# En Docker, el .env está en /app/; en desarrollo, está en SkyAnalytics/
+# Intentar cargar desde múltiples ubicaciones
+for env_path in [
+    os.path.join(_PROJECT_ROOT, ".env"),  # SkyAnalytics/.env (desarrollo)
+    os.path.join(_BACKEND_DIR, ".env"),  # backend/.env (alternativo)
+    ".env",  # Ruta actual
+]:
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        break
+
+load_dotenv()  # Cargar cualquier variable de entorno disponible
 
 # ==================== CONFIGURACIÓN ====================
 DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://admin:secretpassword@db:5432/skyanalytics"
+    "DATABASE_URL", "postgresql://admin:secretpassword@db:5432/skyanalytics"
 )
 
 # Importer modelos AQUÍ para evitar circular imports
@@ -47,11 +56,7 @@ else:
 
 engine = create_engine(DATABASE_URL, **engine_args)
 
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
-)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Crear tablas al importar; en serverless la BD puede no estar aún (p. ej. sin DATABASE_URL en Vercel).
 try:
@@ -69,10 +74,10 @@ except Exception:
 def get_db() -> Session:
     """
     Inyección de dependencia para la sesión de BD.
-    
+
     FastAPI llama esto automáticamente para cada request.
     La sesión se abre ANTES del endpoint y se cierra DESPUÉS.
-    
+
     Uso en endpoints:
         @app.get("/endpoint")
         async def endpoint(db: Session = Depends(get_db)):

@@ -2,16 +2,21 @@ version: '3.8'
 
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
   dashboard:
-    build: ./dashboard
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
     ports:
       - "8501:8501"
     env_file:
@@ -45,6 +50,20 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
 
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: skyanalytics_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@skyanalytics.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
 volumes:
   postgres_data:
   redis_data:
+  pgadmin_data:

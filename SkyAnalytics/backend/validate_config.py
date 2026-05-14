@@ -15,18 +15,19 @@ import logging
 from datetime import date
 
 import psycopg2
-import dotenv
+from dotenv import load_dotenv
 
 # Cargar .env
-dotenv.load_dotenv()
+load_dotenv()
 
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
 
 def verificar_entorno():
     """Verifica variables de entorno"""
     logger.info("🔍 Verificando variables de entorno...")
-    
+
     variables = [
         ("DB_HOST", os.getenv("DB_HOST")),
         ("DB_PORT", os.getenv("DB_PORT")),
@@ -34,18 +35,18 @@ def verificar_entorno():
         ("DB_PASS", "***" if os.getenv("DB_PASS") else "NO DEFINIDA"),
         ("POSTGRES_DB", os.getenv("POSTGRES_DB")),
     ]
-    
+
     for nombre, valor in variables:
         estado = "✓" if valor else "✗"
         logger.info(f"  {estado} {nombre}: {valor}")
-    
+
     return all(valor for nombre, valor in variables[:-1])  # Excluir pass
 
 
 def verificar_conexion():
     """Verifica conexión a PostgreSQL"""
     logger.info("\n🔌 Verificando conexión a PostgreSQL...")
-    
+
     try:
         conexion = psycopg2.connect(
             host=os.getenv("DB_HOST"),
@@ -68,7 +69,7 @@ def verificar_conexion():
 def verificar_tablas(conexion):
     """Verifica que las tablas existan"""
     logger.info("\n📋 Verificando tablas...")
-    
+
     try:
         with conexion.cursor() as cur:
             # Verificar tabla pasajeros
@@ -79,13 +80,13 @@ def verificar_tablas(conexion):
                 )
             """)
             existe = cur.fetchone()[0]
-            
+
             if existe:
                 # Contar registros
                 cur.execute("SELECT COUNT(*) FROM pasajeros")
                 total = cur.fetchone()[0]
                 logger.info(f"  ✓ Tabla 'pasajeros' existe ({total:,} registros)")
-                
+
                 # Mostrar estructura
                 cur.execute("""
                     SELECT column_name, data_type, is_nullable 
@@ -95,12 +96,12 @@ def verificar_tablas(conexion):
                 """)
                 logger.info("  Estructura:")
                 for col_name, data_type, nullable in cur.fetchall():
-                    nullable_str = "nullable" if nullable == 'YES' else "NOT NULL"
+                    nullable_str = "nullable" if nullable == "YES" else "NOT NULL"
                     logger.info(f"    - {col_name}: {data_type} ({nullable_str})")
             else:
                 logger.warning("  ⚠ Tabla 'pasajeros' NO existe")
                 logger.info("  Ejecuta primero: python seed_data.py --test")
-            
+
             return existe
     except psycopg2.Error as e:
         logger.error(f"  ✗ Error verificando tablas: {e}")
@@ -110,17 +111,17 @@ def verificar_tablas(conexion):
 def verificar_validaciones():
     """Verifica que las validaciones de Pydantic funcionan"""
     logger.info("\n✅ Verificando validaciones de Pydantic...")
-    
+
     try:
         from schemas import PasajeroSchemaBase, ValidadorTarjeta
-        
+
         # Test 1: Email válido
         try:
             datos_validos = {
                 "nombre_completo": "Juan Pérez",
                 "correo": "juan@gmail.com",
                 "tarjeta_credito": "4532015112830366",  # VISA válida
-                "tarjeta_debito": "5425233010103442",   # MASTERCARD válida
+                "tarjeta_debito": "5425233010103442",  # MASTERCARD válida
                 "direccion": "Calle 123",
                 "ciudad": "Bogotá",
                 "pais": "Colombia",
@@ -130,7 +131,7 @@ def verificar_validaciones():
             logger.info("  ✓ Validación de datos correctos: OK")
         except Exception as e:
             logger.error(f"  ✗ Validación de datos correctos falló: {e}")
-        
+
         # Test 2: Email inválido
         try:
             datos_invalidos = datos_validos.copy()
@@ -139,7 +140,7 @@ def verificar_validaciones():
             logger.warning("  ⚠ Validación de email NO funcionó (debería fallar)")
         except Exception:
             logger.info("  ✓ Validación de email inválido: OK (rechazó)")
-        
+
         # Test 3: Tarjeta inválida
         try:
             datos_invalidos = datos_validos.copy()
@@ -148,19 +149,19 @@ def verificar_validaciones():
             logger.warning("  ⚠ Validación de tarjeta NO funcionó (debería fallar)")
         except Exception:
             logger.info("  ✓ Validación de tarjeta inválida: OK (rechazó)")
-        
+
         # Test 4: Luhn checksum
         logger.info("  Probando algoritmo de Luhn:")
         tarjetas_test = [
-            ("4532015112830366", True),   # VISA válida
-            ("5425233010103442", True),   # MASTERCARD válida
+            ("4532015112830366", True),  # VISA válida
+            ("5425233010103442", True),  # MASTERCARD válida
             ("4532015112830367", False),  # VISA inválida
         ]
         for tarjeta, deberia_ser_valida in tarjetas_test:
             es_valida = ValidadorTarjeta.validar_numero_tarjeta(tarjeta)
             estado = "✓" if es_valida == deberia_ser_valida else "✗"
             logger.info(f"    {estado} {tarjeta}: {es_valida}")
-        
+
     except ImportError as e:
         logger.error(f"  ✗ Error importando schemas.py: {e}")
     except Exception as e:
@@ -172,24 +173,24 @@ def main():
     logger.info("=" * 60)
     logger.info("VALIDACIÓN DE CONFIGURACIÓN - SkyAnalytics Backend")
     logger.info("=" * 60)
-    
+
     # 1. Verificar entorno
     if not verificar_entorno():
         logger.error("\n✗ Falta configurar variables de entorno")
         return False
-    
+
     # 2. Verificar conexión
     conexion = verificar_conexion()
     if not conexion:
         return False
-    
+
     # 3. Verificar tablas
     verificar_tablas(conexion)
     conexion.close()
-    
+
     # 4. Verificar validaciones
     verificar_validaciones()
-    
+
     logger.info("\n" + "=" * 60)
     logger.info("✅ VALIDACIÓN COMPLETADA")
     logger.info("=" * 60)

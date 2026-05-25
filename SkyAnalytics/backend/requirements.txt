@@ -3,6 +3,7 @@ uvicorn[standard]
 sqlalchemy
 psycopg2-binary
 pandas
+openpyxl
 faker
 alembic
 pydantic[email]

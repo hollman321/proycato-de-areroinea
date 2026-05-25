@@ -18,7 +18,17 @@ from slowapi.middleware import SlowAPIMiddleware
 from core.config import settings
 from middleware.errors import register_exception_handlers
 from middleware.logging_middleware import RequestLoggingMiddleware
-from routers import admin, analytics, auth, estadisticas, health, pasajeros, reference
+from routers import (
+    admin,
+    analytics,
+    auth,
+    enterprise,
+    estadisticas,
+    flights,
+    health,
+    pasajeros,
+    reference,
+)
 
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO))
 
@@ -58,6 +68,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(admin.router)
     app.include_router(analytics.router)
+    app.include_router(enterprise.router)
+    app.include_router(flights.router)
     app.include_router(estadisticas.router)
     app.include_router(pasajeros.router)
     app.include_router(reference.router)

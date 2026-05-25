@@ -8,21 +8,26 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from deps import get_current_active_user
-from models.pasajero import Pasajero
+from models.pasajero import MillasAcumuladas, Pasajero
 from models.user import User
 from services import analytics_service, categoria_service
+from services.analytics_cache import get_cached
 
 router = APIRouter(tags=["Estadísticas"])
 
 
 @router.get("/estadisticas/total-pasajeros")
-async def total_pasajeros(_: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+def total_pasajeros(
+    _: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+):
     total = db.query(Pasajero).count()
     return {"total_pasajeros": total}
 
 
 @router.get("/estadisticas/por-pais")
-async def estadisticas_por_pais(_: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+def estadisticas_por_pais(
+    _: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+):
     resultados = (
         db.query(Pasajero.pais, func.count(Pasajero.id).label("cantidad"))
         .group_by(Pasajero.pais)
@@ -34,52 +39,90 @@ async def estadisticas_por_pais(_: User = Depends(get_current_active_user), db: 
 
 
 @router.get("/estadisticas/resumen")
-async def resumen_estadisticas(_: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+def resumen_estadisticas(
+    _: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+):
     # Misma lógica y caché 30s que GET /analytics/resumen (dict crudo sin schema Pydantic).
     return analytics_service.resumen_cached(db)
 
 
 @router.get("/estadisticas/categorias")
-async def estadisticas_por_categoria(_: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    from models.pasajero import MillasAcumuladas
+def estadisticas_por_categoria(
+    _: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+):
+    def build():
+        rows = (
+            db.query(
+                Pasajero.pais,
+                MillasAcumuladas.millas_totales,
+                MillasAcumuladas.dinero_gastado,
+            )
+            .outerjoin(MillasAcumuladas)
+            .all()
+        )
+        conteo = {"PREMIUM": 0, "STANDARD": 0, "BASICO": 0}
+        for pais, millas_totales, dinero_gastado in rows:
+            millas_totales = int(millas_totales or 0)
+            dinero_gastado = float(dinero_gastado or 0)
+            cat = categoria_service.calcular_categoria(
+                millas_totales, dinero_gastado, pais
+            )
+            conteo[cat] = conteo.get(cat, 0) + 1
+        return {"estadisticas_categorias": conteo, "total": sum(conteo.values())}
 
-    pasajeros_con_millas = db.query(Pasajero, MillasAcumuladas).outerjoin(MillasAcumuladas).all()
-    conteo = {"PREMIUM": 0, "STANDARD": 0, "BASICO": 0}
-    for pasajero, millas in pasajeros_con_millas:
-        millas_totales = millas.millas_totales if millas else 0
-        dinero_gastado = millas.dinero_gastado if millas else 0
-        cat = categoria_service.calcular_categoria(millas_totales, dinero_gastado, pasajero.pais)
-        conteo[cat] = conteo.get(cat, 0) + 1
-    return {"estadisticas_categorias": conteo, "total": sum(conteo.values())}
+    return get_cached("estadisticas:categorias:v1", build)
 
 
 @router.get("/stats/categoria-promedio")
-async def categoria_promedio_por_pais(_: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    from models.pasajero import MillasAcumuladas
-
-    resultado = db.query(Pasajero.pais).distinct().all()
-    stats_por_pais = []
-    for (pais,) in resultado:
-        pasajeros_pais = db.query(Pasajero).filter(Pasajero.pais == pais).all()
-        if not pasajeros_pais:
-            continue
-        conteo_categoria = {"PREMIUM": 0, "STANDARD": 0, "BASICO": 0}
-        for p in pasajeros_pais:
-            millas = db.query(MillasAcumuladas).filter(MillasAcumuladas.pasajero_id == p.id).first()
-            millas_totales = millas.millas_totales if millas else 0
-            dinero_gastado = millas.dinero_gastado if millas else 0
-            cat = categoria_service.calcular_categoria(millas_totales, dinero_gastado, p.pais)
-            conteo_categoria[cat] = conteo_categoria.get(cat, 0) + 1
-        porcentaje_premium = (conteo_categoria["PREMIUM"] / len(pasajeros_pais)) * 100
-        stats_por_pais.append(
-            {
-                "pais": pais,
-                "total_pasajeros": len(pasajeros_pais),
-                "premium": conteo_categoria["PREMIUM"],
-                "standard": conteo_categoria["STANDARD"],
-                "basico": conteo_categoria["BASICO"],
-                "porcentaje_premium": round(porcentaje_premium, 2),
-            }
+def categoria_promedio_por_pais(
+    _: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+):
+    def build():
+        rows = (
+            db.query(
+                Pasajero.pais,
+                MillasAcumuladas.millas_totales,
+                MillasAcumuladas.dinero_gastado,
+            )
+            .outerjoin(MillasAcumuladas)
+            .all()
         )
-    stats_por_pais.sort(key=lambda x: x["porcentaje_premium"], reverse=True)
-    return {"estadisticas_por_pais": stats_por_pais}
+        resumen_por_pais: dict[str, dict[str, int | float]] = {}
+        for pais, millas_totales, dinero_gastado in rows:
+            millas_totales = int(millas_totales or 0)
+            dinero_gastado = float(dinero_gastado or 0)
+            cat = categoria_service.calcular_categoria(
+                millas_totales, dinero_gastado, pais
+            )
+            pais_key = pais or "Desconocido"
+            if pais_key not in resumen_por_pais:
+                resumen_por_pais[pais_key] = {
+                    "total": 0,
+                    "PREMIUM": 0,
+                    "STANDARD": 0,
+                    "BASICO": 0,
+                }
+            resumen_por_pais[pais_key]["total"] += 1
+            resumen_por_pais[pais_key][cat] += 1
+
+        stats_por_pais = []
+        for pais_key, datos in resumen_por_pais.items():
+            total = datos["total"]
+            premium = int(datos["PREMIUM"])
+            standard = int(datos["STANDARD"])
+            basico = int(datos["BASICO"])
+            porcentaje_premium = (premium / total) * 100 if total else 0.0
+            stats_por_pais.append(
+                {
+                    "pais": pais_key,
+                    "total_pasajeros": total,
+                    "premium": premium,
+                    "standard": standard,
+                    "basico": basico,
+                    "porcentaje_premium": round(porcentaje_premium, 2),
+                }
+            )
+        stats_por_pais.sort(key=lambda x: x["porcentaje_premium"], reverse=True)
+        return {"estadisticas_por_pais": stats_por_pais}
+
+    return get_cached("estadisticas:categoria-promedio:v1", build)

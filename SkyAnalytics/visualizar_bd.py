@@ -2,12 +2,12 @@
 Script simple para servir datos de la base de datos en una página web.
 """
 
-from flask import Flask, jsonify, render_string
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import json
 
-app = Flask(__name__)
+app = FastAPI()
 
 def get_db_connection():
     conn = psycopg2.connect(
@@ -19,7 +19,7 @@ def get_db_connection():
     )
     return conn
 
-@app.route('/')
+@app.get("/", response_class=HTMLResponse)
 def index():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -43,7 +43,7 @@ def index():
     stats['millas_acumuladas'] = cur.fetchone()['count']
     
     # Obtener usuarios
-    cur.execute("SELECT id, username, email, is_active FROM users LIMIT 10")
+    cur.execute("SELECT id, email, full_name, role, is_active, created_at FROM users ORDER BY id LIMIT 10")
     usuarios = cur.fetchall()
     
     cur.close()
@@ -100,9 +100,11 @@ def index():
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>Usuario</th>
                         <th>Email</th>
+                        <th>Nombre</th>
+                        <th>Rol</th>
                         <th>Activo</th>
+                        <th>Creado</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -113,9 +115,11 @@ def index():
         html += f"""
                     <tr>
                         <td>{usuario['id']}</td>
-                        <td>{usuario['username']}</td>
                         <td>{usuario['email']}</td>
+                        <td>{usuario['full_name'] or '-'}</td>
+                        <td>{usuario['role']}</td>
                         <td>{activo}</td>
+                        <td>{usuario['created_at']}</td>
                     </tr>
         """
     
@@ -127,7 +131,9 @@ def index():
     </html>
     """
     
-    return html
+    return HTMLResponse(html)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5555, debug=False)
+    import uvicorn
+
+    uvicorn.run(app, host='0.0.0.0', port=5555)

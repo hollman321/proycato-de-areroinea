@@ -1,0 +1,79 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  SUPERVISOR
+  OPERATOR
+}
+
+enum OpStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  full_name String?
+  role      Role     @default(OPERATOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  operations Operation[]
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  company   String?
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  operations Operation[]
+}
+
+model Operation {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      OpStatus @default(PENDING)
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  operatorId  String?
+  operator    User?    @relation(fields: [operatorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  type        String   // "INCOME" or "EXPENSE"
+  amount      Float
+  category    String
+  description String?
+  date        DateTime @default(now())
+}
+
+model Log {
+  id        String   @id @default(cuid())
+  action    String
+  userId    String?
+  details   Json?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}

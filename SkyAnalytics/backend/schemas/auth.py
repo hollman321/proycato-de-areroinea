@@ -47,6 +47,7 @@ class UserPublic(BaseModel):
     email: str
     full_name: Optional[str] = None
     role: str
+    is_active: bool
 
     class Config:
         from_attributes = True

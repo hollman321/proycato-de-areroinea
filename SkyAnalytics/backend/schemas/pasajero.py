@@ -21,7 +21,11 @@ class ValidadorTarjeta:
     @staticmethod
     def validar_numero_tarjeta(numero: str) -> bool:
         numero_limpio = numero.replace(" ", "").replace("-", "")
-        if not numero_limpio.isdigit() or len(numero_limpio) < 13 or len(numero_limpio) > 19:
+        if (
+            not numero_limpio.isdigit()
+            or len(numero_limpio) < 13
+            or len(numero_limpio) > 19
+        ):
             return False
 
         def luhn_checksum(card_number: str) -> int:
@@ -63,22 +67,30 @@ class PasajeroSchemaBase(BaseModel):
     @field_validator("nombre_completo")
     @classmethod
     def validar_nombre(cls, v: str) -> str:
-        if not re.match(r"^[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s'-]+$", v):
+        cleaned = v.strip()
+        if not re.match(
+            r"^[a-zA-ZáéíóúñüÁÉÍÓÚÑÜ\s'’\-\.\(\)]+$",
+            cleaned,
+        ):
             raise ValueError("Nombre contiene caracteres inválidos")
-        return v.strip()
+        return cleaned
 
     @field_validator("tarjeta_credito")
     @classmethod
     def validar_tarjeta_credito(cls, v: str) -> str:
         if not ValidadorTarjeta.validar_numero_tarjeta(v):
-            raise ValueError("Número de tarjeta de crédito inválido (Luhn checksum fallo)")
+            raise ValueError(
+                "Número de tarjeta de crédito inválido (Luhn checksum fallo)"
+            )
         return v.replace(" ", "").replace("-", "")
 
     @field_validator("tarjeta_debito")
     @classmethod
     def validar_tarjeta_debito(cls, v: str) -> str:
         if not ValidadorTarjeta.validar_numero_tarjeta(v):
-            raise ValueError("Número de tarjeta de débito inválido (Luhn checksum fallo)")
+            raise ValueError(
+                "Número de tarjeta de débito inválido (Luhn checksum fallo)"
+            )
         return v.replace(" ", "").replace("-", "")
 
     @field_validator("ciudad", "pais")
@@ -179,6 +191,7 @@ class PerfillPasajero(BaseModel):
     dinero_gastado: float
     numero_transacciones: int
     beneficios: list[str]
+    descuento: Optional[dict] = None
 
     class Config:
         from_attributes = True

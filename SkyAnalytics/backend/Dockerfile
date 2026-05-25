@@ -1,16 +1,17 @@
 FROM python:3.9-slim
 
 WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Copiar requirements desde backend
 COPY backend/requirements.txt .
-RUN pip install -r requirements.txt
-
-# Copiar el .env desde la raíz del proyecto (disponible con context: . en docker-compose)
-COPY .env* ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar código del backend
 COPY backend/ ./
 
-# Migraciones + usuario demo + API
-CMD ["sh", "-c", "alembic upgrade head && python scripts/seed_admin.py && uvicorn main:app --host 0.0.0.0 --port 8000"]
+EXPOSE 8000
+
+# Esperar DB, ejecutar migraciones + usuario demo + API
+CMD ["sh", "/app/docker-entrypoint.sh"]

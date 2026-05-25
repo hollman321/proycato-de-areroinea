@@ -1,128 +1,78 @@
 'use client'
 
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/store/auth'
-import api from '@/services/api'
-import { Button } from '@/components/Button'
+import { Plane, User, Mail, Lock, ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui/Card'
+import { useToast } from '@/providers/ToastProvider'
+import Link from 'next/link'
+import axios from 'axios'
 
-export default function LoginPage() {
-    const [email, setEmail] = useState('')
-    const [password, setPassword] = useState('')
-    const [showPassword, setShowPassword] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
-    const [error, setError] = useState('')
-
+export default function RegisterPage() {
+    const [formData, setFormData] = useState({ full_name: '', email: '', password: '' })
+    const [loading, setLoading] = useState(false)
     const router = useRouter()
-    const login = useAuthStore((state) => state.login)
+    const { success, error } = useToast()
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        setIsLoading(true)
-        setError('')
-
+        setLoading(true)
         try {
-            const response = await api.post('/auth/login', { email, password })
-            const { access_token, user } = response.data
-
-            localStorage.setItem('auth-token', access_token)
-            login(user, access_token)
-
-            router.push('/dashboard')
+            await axios.post('/api/auth/register', formData)
+            success('Cuenta creada exitosamente. Ya puedes iniciar sesión.')
+            router.push('/login')
         } catch (err: any) {
-            setError(err.response?.data?.detail || 'Error al iniciar sesión')
+            error(err.response?.data?.error || 'Error en el registro')
         } finally {
-            setIsLoading(false)
+            setLoading(false)
         }
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 p-4">
-            <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full max-w-md"
-            >
-                <div className="backdrop-blur-xl bg-white/10 rounded-2xl border border-white/20 p-8 shadow-2xl">
-                    <div className="text-center mb-8">
-                        <h1 className="text-3xl font-bold text-white mb-2">SkyAnalytics</h1>
-                        <p className="text-gray-300">Inicia sesión en tu cuenta</p>
-                    </div>
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+            <div className="w-full max-w-md space-y-8">
+                <Link href="/login" className="inline-flex items-center text-sm text-slate-400 hover:text-white transition-colors">
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Volver al login
+                </Link>
 
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Correo electrónico
-                            </label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="admin@skyanalytics.com"
-                                    required
-                                />
-                            </div>
+                <div className="rounded-3xl border border-white/10 bg-slate-900/50 p-8 backdrop-blur-xl shadow-2xl">
+                    <h2 className="text-2xl font-bold text-white mb-6">Crear Cuenta Administrativa</h2>
+
+                    <form className="space-y-4" onSubmit={handleSubmit}>
+                        <div className="relative">
+                            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
+                            <input
+                                type="text" required
+                                className="w-full rounded-xl bg-slate-950 border border-white/10 p-3 pl-10 text-white focus:ring-2 focus:ring-sky-500/50"
+                                placeholder="Nombre completo"
+                                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                            />
+                        </div>
+                        <div className="relative">
+                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
+                            <input
+                                type="email" required
+                                className="w-full rounded-xl bg-slate-950 border border-white/10 p-3 pl-10 text-white focus:ring-2 focus:ring-sky-500/50"
+                                placeholder="Correo corporativo"
+                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            />
+                        </div>
+                        <div className="relative">
+                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
+                            <input
+                                type="password" required
+                                className="w-full rounded-xl bg-slate-950 border border-white/10 p-3 pl-10 text-white focus:ring-2 focus:ring-sky-500/50"
+                                placeholder="Contraseña segura"
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            />
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">
-                                Contraseña
-                            </label>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="••••••••"
-                                    required
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-                                >
-                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                                </button>
-                            </div>
-                        </div>
-
-                        {error && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="text-red-400 text-sm text-center"
-                            >
-                                {error}
-                            </motion.div>
-                        )}
-
-                        <Button
-                            type="submit"
-                            loading={isLoading}
-                            className="w-full"
-                        >
-                            {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+                        <Button type="submit" className="w-full h-12 mt-4" loading={loading}>
+                            Registrar cuenta
                         </Button>
                     </form>
-
-                    <div className="mt-6 text-center">
-                        <Link
-                            href="/forgot-password"
-                            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
-                        >
-                            ¿Olvidaste tu contraseña?
-                        </Link>
-                    </div>
                 </div>
-            </motion.div>
+            </div>
         </div>
     )
 }

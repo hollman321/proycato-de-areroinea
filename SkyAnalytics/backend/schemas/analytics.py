@@ -33,6 +33,51 @@ class MesCantidad(BaseModel):
     cantidad: int
 
 
+class CategoriaCantidad(BaseModel):
+    categoria: str
+    cantidad: int
+
+
+class RutaPopular(BaseModel):
+    origen: str
+    destino: str
+    cantidad: int
+    ingresos: float = 0
+
+
+class TopUsuario(BaseModel):
+    pasajero_id: int
+    nombre_completo: str
+    correo: str
+    pais: str
+    vuelos: int
+    millas_totales: int
+    dinero_gastado: float
+    categoria: str
+    descuento: dict
+
+
+class AirportUsage(BaseModel):
+    codigo: str
+    nombre: str
+    ciudad: Optional[str] = None
+    pais: str
+    usos_estimados: int
+
+
+class IngresoPais(BaseModel):
+    pais: str
+    ingresos: float
+
+
+class AnalyticsAvanzado(BaseModel):
+    distribucion_categorias: List[CategoriaCantidad]
+    rutas_mas_populares: List[RutaPopular]
+    usuarios_con_mas_vuelos: List[TopUsuario]
+    ingresos_por_pais: List[IngresoPais]
+    aeropuertos_mas_usados: List[AirportUsage]
+
+
 class ResumenAnalytics(BaseModel):
     """KPIs alineados a reglas SkyAnalytics (caché 30s aplicada en el router)."""
 

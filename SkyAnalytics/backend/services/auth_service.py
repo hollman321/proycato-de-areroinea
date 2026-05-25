@@ -13,6 +13,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from core.security import get_password_hash, verify_password
+from models.tenant import Tenant
 from models.user import User
 
 logger = logging.getLogger(__name__)
@@ -45,12 +46,14 @@ def create_user(
     password: str,
     full_name: Optional[str] = None,
     role: str = "analyst",
+    tenant_id: int = 1,
 ) -> User:
     user = User(
         email=normalize_email(email),
         hashed_password=get_password_hash(password),
         full_name=full_name,
         role=role,
+        tenant_id=tenant_id,
         is_active=True,
     )
     db.add(user)
@@ -68,12 +71,19 @@ def ensure_default_admin(db: Session) -> None:
     """
     if db.query(User).first() is not None or not DEFAULT_ADMIN_PASSWORD:
         return
+
+    if db.query(Tenant).filter(Tenant.id == 1).first() is None:
+        tenant = Tenant(id=1, name="Global Tenant", slug="global", is_active=True)
+        db.add(tenant)
+        db.commit()
+
     create_user(
         db,
         email=DEFAULT_ADMIN_EMAIL,
         password=DEFAULT_ADMIN_PASSWORD,
         full_name="Administrador",
         role="admin",
+        tenant_id=1,
     )
     logger.warning(
         "Creado usuario admin por defecto (%s). Cambia la contraseña en producción.",

@@ -35,7 +35,11 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
             detail="Credenciales inválidas",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = create_access_token(user.email, remember_me=request.remember_me)
+    token = create_access_token(
+        user.email,
+        remember_me=request.remember_me,
+        extra_claims={"tenant_id": user.tenant_id},
+    )
     return TokenResponse(access_token=token)
 
 

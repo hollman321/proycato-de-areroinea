@@ -24,7 +24,7 @@ from schemas.pasajero import (
     TransaccionCreate,
     TransaccionResponse,
 )
-from services import categoria_service
+from services import analytics_cache, categoria_service
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ async def crear_pasajero(
         db.add(nuevo)
         db.commit()
         db.refresh(nuevo)
+        analytics_cache.invalidate_dashboard_cache()
         logger.info("Pasajero creado: %s", nuevo.id)
         return nuevo
     except HTTPException:
@@ -140,6 +141,7 @@ async def actualizar_pasajero(
     db.add(db_pasajero)
     db.commit()
     db.refresh(db_pasajero)
+    analytics_cache.invalidate_dashboard_cache()
     return db_pasajero
 
 
@@ -154,6 +156,7 @@ async def eliminar_pasajero(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
     db.delete(db_pasajero)
     db.commit()
+    analytics_cache.invalidate_dashboard_cache()
     return None
 
 
@@ -208,8 +211,18 @@ async def obtener_perfil_pasajero(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
     millas = categoria_service.obtener_o_crear_millas(pasajero_id, db)
     numero_transacciones = db.query(Transaccion).filter(Transaccion.pasajero_id == pasajero_id).count()
-    categoria = categoria_service.calcular_categoria(millas.millas_totales, millas.dinero_gastado, pasajero.pais)
+    categoria = categoria_service.calcular_categoria(
+        millas.millas_totales,
+        millas.dinero_gastado,
+        pasajero.pais,
+        numero_transacciones,
+    )
     beneficios = categoria_service.obtener_beneficios(categoria)
+    descuento = categoria_service.calcular_nivel_descuento(
+        millas.millas_totales,
+        millas.dinero_gastado,
+        numero_transacciones,
+    )
     return PerfillPasajero(
         id=pasajero.id,
         nombre_completo=pasajero.nombre_completo,
@@ -220,6 +233,7 @@ async def obtener_perfil_pasajero(
         dinero_gastado=millas.dinero_gastado,
         numero_transacciones=numero_transacciones,
         beneficios=beneficios,
+        descuento=descuento,
     )
 
 
@@ -253,6 +267,7 @@ async def registrar_transaccion(
     millas.fecha_actualizado = datetime.utcnow()
     db.commit()
     db.refresh(nueva)
+    analytics_cache.invalidate_dashboard_cache()
     return nueva
 
 
@@ -309,6 +324,7 @@ async def actualizar_pasajero_compat(
     db.add(db_pasajero)
     db.commit()
     db.refresh(db_pasajero)
+    analytics_cache.invalidate_dashboard_cache()
     return db_pasajero
 
 
@@ -323,6 +339,7 @@ async def eliminar_pasajero_compat(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
     db.delete(db_pasajero)
     db.commit()
+    analytics_cache.invalidate_dashboard_cache()
     return None
 
 

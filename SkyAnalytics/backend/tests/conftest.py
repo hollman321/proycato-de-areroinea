@@ -5,27 +5,42 @@ Fixtures compartidas: BD de prueba y usuario admin para JWT.
 """
 
 import os
+import sys
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-ci-only")
+os.environ.setdefault("DISABLE_REDIS_CACHE", "1")
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql://admin:secretpassword@db:5432/skyanalytics_test",
+    "sqlite:///:memory:",
 )
 # `database.py` lee DATABASE_URL al importar; alinear con la BD de pruebas.
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
-from models import Base, User  # noqa: E402
+from models import Base, Tenant, User  # noqa: E402
 from database import get_db  # noqa: E402
 from core.security import get_password_hash  # noqa: E402
 from main import app  # noqa: E402
 
-engine = create_engine(TEST_DATABASE_URL)
+engine_kwargs = {}
+if TEST_DATABASE_URL.startswith("sqlite"):
+    engine_kwargs = {
+        "connect_args": {"check_same_thread": False},
+        "poolclass": StaticPool,
+    }
+
+engine = create_engine(TEST_DATABASE_URL, **engine_kwargs)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
@@ -42,6 +57,9 @@ def _setup_db():
     Base.metadata.create_all(bind=engine)
     db = TestingSessionLocal()
     try:
+        if db.query(Tenant).filter(Tenant.id == 1).first() is None:
+            db.add(Tenant(id=1, name="SkyAnalytics Demo", slug="demo"))
+            db.commit()
         if db.query(User).filter(User.email == "admin@skyanalytics.com").first() is None:
             db.add(
                 User(

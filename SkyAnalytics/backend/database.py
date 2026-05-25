@@ -11,7 +11,7 @@ Este módulo centraliza:
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, StaticPool
 from dotenv import load_dotenv
 
 _BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -41,16 +41,22 @@ from models import Base
 # ==================== ENGINE Y SESIONES ====================
 # echo=True muestra SQL en logs (desactiva en producción)
 IS_SERVERLESS = os.getenv("VERCEL") == "1"
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
 engine_args = {
     "echo": False,  # Cambiar a True para debug
-    "pool_pre_ping": True,
 }
 
-if IS_SERVERLESS:
+if IS_SQLITE:
+    engine_args["connect_args"] = {"check_same_thread": False}
+    if DATABASE_URL in {"sqlite://", "sqlite:///:memory:"}:
+        engine_args["poolclass"] = StaticPool
+elif IS_SERVERLESS:
     # En serverless evitamos mantener pools persistentes por instancia.
+    engine_args["pool_pre_ping"] = True
     engine_args["poolclass"] = NullPool
 else:
+    engine_args["pool_pre_ping"] = True
     engine_args["pool_size"] = 20
     engine_args["max_overflow"] = 0
 

@@ -11,7 +11,7 @@ export default function AdministracionPage() {
     const queryClient = useQueryClient()
     const [search, setSearch] = useState('')
     const [selectedUser, setSelectedUser] = useState<any>(null)
-    const [form, setForm] = useState({ nombre: '', correo: '', rol: 'admin' })
+    const [form, setForm] = useState({ nombre: '', correo: '', password: '', rol: 'admin' })
 
     const { data: users } = useQuery({
         queryKey: ['administracion-users'],
@@ -52,9 +52,9 @@ export default function AdministracionPage() {
 
     const handleCreate = () => {
         createMutation.mutate({
-            nombre_completo: form.nombre,
-            correo: form.correo,
-            rol: form.rol,
+            full_name: form.nombre,
+            email: form.correo,
+            password: form.password,
         })
     }
 
@@ -176,6 +176,15 @@ export default function AdministracionPage() {
                                 type="email"
                                 value={form.correo}
                                 onChange={(event) => setForm((current) => ({ ...current, correo: event.target.value }))}
+                                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none focus:border-sky-500"
+                            />
+                        </div>
+                        <div className="rounded-3xl bg-slate-900/80 p-4">
+                            <p className="text-sm text-gray-400">Contraseña</p>
+                            <input
+                                type="password"
+                                value={form.password}
+                                onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
                                 className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/90 px-4 py-3 text-white outline-none focus:border-sky-500"
                             />
                         </div>

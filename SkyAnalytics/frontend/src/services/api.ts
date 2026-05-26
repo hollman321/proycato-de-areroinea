@@ -1,4 +1,6 @@
 import axios, { AxiosRequestConfig } from 'axios'
+import { getCookie, deleteCookie } from 'cookies-next'
+import { v4 as uuidv4 } from 'uuid'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -9,31 +11,44 @@ export const api = axios.create({
     },
 })
 
-// Request interceptor to add auth token
+const getAuthToken = () => {
+    if (typeof window === 'undefined') {
+        return null
+    }
+    return getCookie('auth-token')
+}
+
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('auth-token')
+        const token = getAuthToken()
+        // Inyectar Correlation ID para tracing distribuido
+        config.headers['X-Correlation-ID'] = uuidv4()
+
         if (token) {
-            config.headers.Authorization = `Bearer ${token}`
+            config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${token}`,
+            }
         }
         return config
     },
-    (error) => {
-        return Promise.reject(error)
-    }
+    (error) => Promise.reject(error)
 )
 
-// Response interceptor to handle auth errors
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
-            if (typeof window !== 'undefined') {
-                localStorage.removeItem('auth-token')
-                window.location.href = '/login'
+        if ((error.response?.status === 401 || error.response?.status === 403) && typeof window !== 'undefined') {
+            deleteCookie('auth-token')
+
+            if (error.response?.status === 403) {
+                window.location.href = '/unauthorized'
+            } else if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login?expired=true'
             }
         }
-        return Promise.reject(error)
+        const message = error.response?.data?.error || error.message || 'Error interno del servidor'
+        return Promise.reject(new Error(message))
     }
 )
 

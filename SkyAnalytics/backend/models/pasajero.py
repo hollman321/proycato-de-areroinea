@@ -30,6 +30,12 @@ class Pasajero(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    operations = relationship(
+        "Operation",
+        back_populates="pasajero",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
 class Transaccion(Base):

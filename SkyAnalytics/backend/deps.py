@@ -39,7 +39,9 @@ async def get_current_user(
         )
         sub = payload.get("sub")
         if sub is None or not isinstance(sub, str):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido"
+            )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -48,11 +50,15 @@ async def get_current_user(
 
     user = auth_service.get_user_by_email(db, sub)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuario no encontrado"
+        )
     return user
 
 
 async def get_current_active_user(user: User = Depends(get_current_user)) -> User:
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo"
+        )
     return user

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plane, Plus, Search, Filter, Trash2, Edit2, Clock, CheckCircle2, AlertCircle, X, RefreshCw } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Card'
 import { useToast } from '@/providers/ToastProvider'
 import { motion, AnimatePresence } from 'framer-motion'
 import { formatDate } from '@/lib/utils'
-import axios from 'axios'
+import api from '@/services/api'
 
 const STATUS_OPTIONS = [
     { value: 'PENDING', label: 'Pendiente', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
@@ -20,25 +20,33 @@ const STATUS_OPTIONS = [
 export default function OperacionesPage() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingOp, setEditingOp] = useState<any>(null)
-    const [formData, setFormData] = useState({ title: '', description: '', clientId: '', status: 'PENDING' })
+    const [formData, setFormData] = useState({
+        title: '',
+        description: '',
+        client_id: '',
+        status: 'PENDING',
+        category: 'Operación',
+        type: 'INCOME',
+        amount: 0,
+    })
 
     const queryClient = useQueryClient()
     const { success, error } = useToast()
 
     // Data Fetching
-    const { data: operations, isLoading } = useQuery({
+    const { data: operationsResponse, isLoading } = useQuery({
         queryKey: ['operations'],
-        queryFn: async () => (await axios.get('/api/operations')).data
+        queryFn: async () => (await api.get('/operations', { params: { limit: 100 } })).data,
     })
 
-    const { data: clients } = useQuery({
+    const { data: clientsResponse } = useQuery({
         queryKey: ['clients-list'],
-        queryFn: async () => (await axios.get('/api/clients')).data
+        queryFn: async () => (await api.get('/pasajeros', { params: { limit: 100 } })).data,
     })
 
     const saveMutation = useMutation({
         mutationFn: async (data: any) => {
-            return editingOp ? axios.patch(`/api/operations/${editingOp.id}`, data) : axios.post('/api/operations', data)
+            return editingOp ? api.put(`/operations/${editingOp.id}`, data) : api.post('/operations', data)
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['operations'] })
@@ -49,20 +57,40 @@ export default function OperacionesPage() {
     })
 
     const deleteMutation = useMutation({
-        mutationFn: async (id: string) => axios.delete(`/api/operations/${id}`),
+        mutationFn: async (id: number) => api.delete(`/operations/${id}`),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['operations'] })
             success('Operación eliminada')
         }
     })
 
+    const operations = operationsResponse?.operations || []
+    const clients = clientsResponse?.items || []
+    const clientMap = new Map<number, string>(clients.map((client: any) => [client.id, client.nombre_completo]))
+
     const openModal = (op?: any) => {
         if (op) {
             setEditingOp(op)
-            setFormData({ title: op.title, description: op.description || '', clientId: op.clientId, status: op.status })
+            setFormData({
+                title: op.title,
+                description: op.description || '',
+                client_id: op.client_id?.toString() || '',
+                status: op.status,
+                category: op.category || 'Operación',
+                type: op.type || 'INCOME',
+                amount: op.amount || 0,
+            })
         } else {
             setEditingOp(null)
-            setFormData({ title: '', description: '', clientId: '', status: 'PENDING' })
+            setFormData({
+                title: '',
+                description: '',
+                client_id: '',
+                status: 'PENDING',
+                category: 'Operación',
+                type: 'INCOME',
+                amount: 0,
+            })
         }
         setIsModalOpen(true)
     }
@@ -129,17 +157,17 @@ export default function OperacionesPage() {
                                                 </div>
                                                 <div>
                                                     <div className="font-medium text-white">{op.title}</div>
-                                                    <div className="text-xs text-slate-500">ID: {op.id.slice(-6).toUpperCase()}</div>
+                                                    <div className="text-xs text-slate-500">ID: {String(op.id).padStart(6, '0').toUpperCase()}</div>
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-slate-300">{op.client?.name}</td>
+                                        <td className="px-6 py-4 text-sm text-slate-300">{clientMap.get(op.client_id) || 'N/A'}</td>
                                         <td className="px-6 py-4">
                                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusStyle?.color}`}>
                                                 {statusStyle?.label}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-sm text-slate-400">{formatDate(op.createdAt)}</td>
+                                        <td className="px-6 py-4 text-sm text-slate-400">{op.created_at ? formatDate(op.created_at) : '-'}</td>
                                         <td className="px-6 py-4 text-right">
                                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <button onClick={() => openModal(op)} className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-all"><Edit2 className="h-4 w-4" /></button>
@@ -172,9 +200,9 @@ export default function OperacionesPage() {
 
                                 <div>
                                     <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cliente Asignado</label>
-                                    <select required className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50" value={formData.clientId} onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}>
+                                    <select required className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50" value={formData.client_id} onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}>
                                         <option value="">Seleccione un cliente...</option>
-                                        {clients?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        {clients?.map((c: any) => <option key={c.id} value={c.id}>{c.nombre_completo}</option>)}
                                     </select>
                                 </div>
 

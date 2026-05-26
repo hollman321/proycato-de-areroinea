@@ -25,9 +25,17 @@ export const useAuthStore = create<AuthState>()(
             token: null,
             isAuthenticated: false,
             login: (user: User, token: string) => {
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('auth-token', token)
+                    document.cookie = `auth-token=${token}; path=/; max-age=${60 * 60 * 24 * 30}`
+                }
                 set({ user, token, isAuthenticated: true })
             },
             logout: () => {
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('auth-token')
+                    document.cookie = 'auth-token=; path=/; max-age=0'
+                }
                 set({ user: null, token: null, isAuthenticated: false })
             },
             updateUser: (updates: Partial<User>) => {

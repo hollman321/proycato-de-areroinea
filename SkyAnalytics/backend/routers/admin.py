@@ -700,7 +700,7 @@ async def set_user_active(
 
 @router.get("/reports/global")
 async def global_report(
-    format: str = Query("json", regex="^(json|xlsx)$"),
+    format: str = Query("json", pattern="^(json|xlsx)$"),
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ) -> Any:

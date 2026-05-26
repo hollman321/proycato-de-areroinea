@@ -6,6 +6,7 @@ import { Menu, X, BarChart3, Users, Plane, DollarSign, TrendingUp, Cpu, Monitor,
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
+import { ChatIA } from '@/components/ChatIA'
 
 interface DashboardLayoutProps {
     children: React.ReactNode
@@ -156,6 +157,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     {children}
                 </main>
             </div>
+
+            {/* Chat IA Assistant */}
+            <ChatIA currentRoute={pathname} />
         </div>
     )
 }

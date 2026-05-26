@@ -20,7 +20,7 @@ from schemas.pasajero import (
     PasajeroCreate,
     PasajeroResponse,
     PasajeroUpdate,
-    PerfillPasajero,
+    PerfilPasajero,
     TransaccionCreate,
     TransaccionResponse,
 )
@@ -31,17 +31,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Pasajeros"])
 
 
-@router.post("/pasajeros", response_model=PasajeroResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/pasajeros", response_model=PasajeroResponse, status_code=status.HTTP_201_CREATED
+)
 async def crear_pasajero(
     pasajero: PasajeroCreate,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_active_user),
 ):
     try:
-        db_pasajero = db.query(Pasajero).filter(Pasajero.correo == pasajero.correo).first()
+        db_pasajero = (
+            db.query(Pasajero).filter(Pasajero.correo == pasajero.correo).first()
+        )
         if db_pasajero:
-            logger.warning("Intento de crear pasajero con correo duplicado: %s", pasajero.correo)
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El correo ya está registrado")
+            logger.warning(
+                "Intento de crear pasajero con correo duplicado: %s", pasajero.correo
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El correo ya está registrado",
+            )
         nuevo = Pasajero(**pasajero.model_dump())
         db.add(nuevo)
         db.commit()
@@ -53,7 +62,10 @@ async def crear_pasajero(
         raise
     except Exception as e:
         logger.error("Error al crear pasajero: %s", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno del servidor")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor",
+        )
 
 
 @router.get("/pasajeros", response_model=PaginatedPasajeros)
@@ -122,7 +134,10 @@ async def obtener_pasajero(
 ):
     pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     return pasajero
 
 
@@ -135,7 +150,10 @@ async def actualizar_pasajero(
 ):
     db_pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not db_pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     for campo, valor in pasajero_update.model_dump(exclude_unset=True).items():
         setattr(db_pasajero, campo, valor)
     db.add(db_pasajero)
@@ -153,7 +171,10 @@ async def eliminar_pasajero(
 ):
     db_pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not db_pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     db.delete(db_pasajero)
     db.commit()
     analytics_cache.invalidate_dashboard_cache()
@@ -168,7 +189,10 @@ async def buscar_por_correo(
 ):
     pasajero = db.query(Pasajero).filter(Pasajero.correo == correo).first()
     if not pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con correo {correo} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con correo {correo} no encontrado",
+        )
     return pasajero
 
 
@@ -208,9 +232,14 @@ async def obtener_perfil_pasajero(
 ):
     pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     millas = categoria_service.obtener_o_crear_millas(pasajero_id, db)
-    numero_transacciones = db.query(Transaccion).filter(Transaccion.pasajero_id == pasajero_id).count()
+    numero_transacciones = (
+        db.query(Transaccion).filter(Transaccion.pasajero_id == pasajero_id).count()
+    )
     categoria = categoria_service.calcular_categoria(
         millas.millas_totales,
         millas.dinero_gastado,
@@ -223,7 +252,7 @@ async def obtener_perfil_pasajero(
         millas.dinero_gastado,
         numero_transacciones,
     )
-    return PerfillPasajero(
+    return PerfilPasajero(
         id=pasajero.id,
         nombre_completo=pasajero.nombre_completo,
         correo=pasajero.correo,
@@ -251,7 +280,10 @@ async def registrar_transaccion(
 ):
     pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     millas_ganadas = max(10, int(transaccion.monto / 2))
     nueva = Transaccion(
         pasajero_id=pasajero_id,
@@ -285,7 +317,10 @@ async def obtener_historial_transacciones(
 ):
     pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     return (
         db.query(Transaccion)
         .filter(Transaccion.pasajero_id == pasajero_id)
@@ -296,7 +331,9 @@ async def obtener_historial_transacciones(
     )
 
 
-@router.get("/pasajeros/{pasajero_id}", response_model=PasajeroResponse, tags=["Pasajeros"])
+@router.get(
+    "/pasajeros/{pasajero_id}", response_model=PasajeroResponse, tags=["Pasajeros"]
+)
 async def obtener_pasajero_compat(
     pasajero_id: int,
     db: Session = Depends(get_db),
@@ -305,11 +342,16 @@ async def obtener_pasajero_compat(
     """Compatibilidad con clientes que usan `/pasajeros/{id}` sin el segmento `id/`."""
     pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     return pasajero
 
 
-@router.put("/pasajeros/{pasajero_id}", response_model=PasajeroResponse, tags=["Pasajeros"])
+@router.put(
+    "/pasajeros/{pasajero_id}", response_model=PasajeroResponse, tags=["Pasajeros"]
+)
 async def actualizar_pasajero_compat(
     pasajero_id: int,
     pasajero_update: PasajeroUpdate,
@@ -318,7 +360,10 @@ async def actualizar_pasajero_compat(
 ):
     db_pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not db_pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     for campo, valor in pasajero_update.model_dump(exclude_unset=True).items():
         setattr(db_pasajero, campo, valor)
     db.add(db_pasajero)
@@ -328,7 +373,11 @@ async def actualizar_pasajero_compat(
     return db_pasajero
 
 
-@router.delete("/pasajeros/{pasajero_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Pasajeros"])
+@router.delete(
+    "/pasajeros/{pasajero_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Pasajeros"],
+)
 async def eliminar_pasajero_compat(
     pasajero_id: int,
     db: Session = Depends(get_db),
@@ -336,14 +385,21 @@ async def eliminar_pasajero_compat(
 ):
     db_pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not db_pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     db.delete(db_pasajero)
     db.commit()
     analytics_cache.invalidate_dashboard_cache()
     return None
 
 
-@router.get("/transacciones/{pasajero_id}", response_model=List[TransaccionResponse], tags=["Transacciones"])
+@router.get(
+    "/transacciones/{pasajero_id}",
+    response_model=List[TransaccionResponse],
+    tags=["Transacciones"],
+)
 async def obtener_transacciones_compat(
     pasajero_id: int,
     skip: int = Query(0, ge=0),
@@ -353,7 +409,10 @@ async def obtener_transacciones_compat(
 ):
     pasajero = db.query(Pasajero).filter(Pasajero.id == pasajero_id).first()
     if not pasajero:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Pasajero con ID {pasajero_id} no encontrado")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Pasajero con ID {pasajero_id} no encontrado",
+        )
     return (
         db.query(Transaccion)
         .filter(Transaccion.pasajero_id == pasajero_id)

@@ -43,7 +43,9 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     return TokenResponse(access_token=token)
 
 
-@router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED
+)
 async def register(body: RegisterRequest, db: Session = Depends(get_db)):
     if auth_service.get_user_by_email(db, body.email):
         raise HTTPException(status_code=400, detail="El correo ya está registrado")

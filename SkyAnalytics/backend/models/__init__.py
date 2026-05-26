@@ -10,6 +10,7 @@ from models.alert import Alert
 from models.audit_log import AuditLog
 from models.base import Base
 from models.enums import CategoriaEnum
+from models.operation import Operation
 from models.pasajero import MillasAcumuladas, Pasajero, Transaccion
 from models.tenant import Tenant
 from models.user import User

@@ -7,6 +7,7 @@ Los endpoints concretos viven en `routers/` para mantener este archivo pequeño 
 from __future__ import annotations
 
 import logging
+import json
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,6 +27,8 @@ from routers import (
     estadisticas,
     flights,
     health,
+    ia,
+    operaciones,
     pasajeros,
     reference,
 )
@@ -53,10 +56,26 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
 
+    # Manejo robusto de CORS_ORIGINS para evitar bloqueos en desarrollo
+    cors_origins = []
+    if isinstance(cors_origins, str):
+        if cors_origins.startswith("["):
+            try:
+                cors_origins = json.loads(cors_origins.replace("'", '"'))
+            except:
+                cors_origins = ["*"]
+        elif "," in cors_origins:
+            cors_origins = [o.strip() for o in cors_origins.split(",")]
+    else:
+        cors_origins = settings.cors_origins
+
+    if not cors_origins:
+        cors_origins = ["*"]
+
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=cors_origins or ["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -71,8 +90,10 @@ def create_app() -> FastAPI:
     app.include_router(enterprise.router)
     app.include_router(flights.router)
     app.include_router(estadisticas.router)
+    app.include_router(operaciones.router)
     app.include_router(pasajeros.router)
     app.include_router(reference.router)
+    app.include_router(ia.router)
 
     return app
 

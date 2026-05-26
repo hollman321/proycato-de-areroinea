@@ -10,7 +10,7 @@ import re
 from datetime import date, datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, constr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from schemas.pagination import PaginationMetadata
 
@@ -55,13 +55,13 @@ class ValidadorTarjeta:
 
 
 class PasajeroSchemaBase(BaseModel):
-    nombre_completo: constr(min_length=3, max_length=100)  # type: ignore[valid-type]
+    nombre_completo: str = Field(..., min_length=3, max_length=100)
     correo: EmailStr
-    tarjeta_credito: constr(min_length=13, max_length=19)  # type: ignore[valid-type]
-    tarjeta_debito: constr(min_length=13, max_length=19)  # type: ignore[valid-type]
-    direccion: constr(min_length=5, max_length=255)  # type: ignore[valid-type]
-    ciudad: constr(min_length=2, max_length=100)  # type: ignore[valid-type]
-    pais: constr(min_length=2, max_length=100)  # type: ignore[valid-type]
+    tarjeta_credito: str = Field(..., min_length=13, max_length=19)
+    tarjeta_debito: str = Field(..., min_length=13, max_length=19)
+    direccion: str = Field(..., min_length=5, max_length=255)
+    ciudad: str = Field(..., min_length=2, max_length=100)
+    pais: str = Field(..., min_length=2, max_length=100)
     fecha_registro: date
 
     @field_validator("nombre_completo")
@@ -113,13 +113,13 @@ class PasajeroCreate(PasajeroSchemaBase):
 
 
 class PasajeroUpdate(BaseModel):
-    nombre_completo: Optional[constr(min_length=3, max_length=100)] = None  # type: ignore[valid-type]
+    nombre_completo: Optional[str] = Field(None, min_length=3, max_length=100)
     correo: Optional[EmailStr] = None
-    tarjeta_credito: Optional[constr(min_length=13, max_length=19)] = None  # type: ignore[valid-type]
-    tarjeta_debito: Optional[constr(min_length=13, max_length=19)] = None  # type: ignore[valid-type]
-    direccion: Optional[constr(min_length=5, max_length=255)] = None  # type: ignore[valid-type]
-    ciudad: Optional[constr(min_length=2, max_length=100)] = None  # type: ignore[valid-type]
-    pais: Optional[constr(min_length=2, max_length=100)] = None  # type: ignore[valid-type]
+    tarjeta_credito: Optional[str] = Field(None, min_length=13, max_length=19)
+    tarjeta_debito: Optional[str] = Field(None, min_length=13, max_length=19)
+    direccion: Optional[str] = Field(None, min_length=5, max_length=255)
+    ciudad: Optional[str] = Field(None, min_length=2, max_length=100)
+    pais: Optional[str] = Field(None, min_length=2, max_length=100)
 
     @field_validator("tarjeta_credito", "tarjeta_debito", mode="before")
     @classmethod
@@ -181,7 +181,7 @@ class PasajeroResponse(PasajeroSchemaBase):
         from_attributes = True
 
 
-class PerfillPasajero(BaseModel):
+class PerfilPasajero(BaseModel):
     id: int
     nombre_completo: str
     correo: str

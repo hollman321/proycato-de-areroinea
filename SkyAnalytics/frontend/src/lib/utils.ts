@@ -28,12 +28,12 @@ export function formatRelativeTime(date: Date | string): string {
   const now = new Date()
   const then = new Date(date)
   const diff = now.getTime() - then.getTime()
-  
+
   const seconds = Math.floor(diff / 1000)
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
-  
+
   if (days > 0) return `hace ${days} día${days > 1 ? 's' : ''}`
   if (hours > 0) return `hace ${hours} hora${hours > 1 ? 's' : ''}`
   if (minutes > 0) return `hace ${minutes} minuto${minutes > 1 ? 's' : ''}`
@@ -80,7 +80,7 @@ export function debounce<T extends (...args: any[]) => any>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout | null = null
-  
+
   return (...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout)
     timeout = setTimeout(() => func(...args), wait)
@@ -127,7 +127,7 @@ export function sortBy<T>(array: T[], key: keyof T, direction: 'asc' | 'desc' = 
   return [...array].sort((a, b) => {
     const aVal = a[key]
     const bVal = b[key]
-    
+
     if (aVal < bVal) return direction === 'asc' ? -1 : 1
     if (aVal > bVal) return direction === 'asc' ? 1 : -1
     return 0
@@ -140,7 +140,7 @@ export function sortBy<T>(array: T[], key: keyof T, direction: 'asc' | 'desc' = 
 export function filterBySearch<T>(array: T[], search: string, keys: (keyof T)[]): T[] {
   if (!search.trim()) return array
   const term = search.toLowerCase()
-  
+
   return array.filter((item) =>
     keys.some((key) => {
       const value = item[key]

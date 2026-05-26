@@ -2,37 +2,49 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, UserPlus, Search, Filter, Trash2, Edit2, Mail, Phone, Building2, X, Loader2 } from 'lucide-react'
+import { Users, UserPlus, Search, Filter, Trash2, Edit2, Mail, Building2, X } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
 import { Button } from '@/components/ui/Card'
 import { useToast } from '@/providers/ToastProvider'
 import { motion, AnimatePresence } from 'framer-motion'
-import axios from 'axios'
+import api from '@/services/api'
 
 interface Client {
-    id: string
-    name: string
-    email: string
-    phone?: string
-    company?: string
-    status: string
+    id: number
+    nombre_completo: string
+    correo: string
+    pais: string
+    ciudad: string
+    tarjeta_credito: string
+    tarjeta_debito: string
+    direccion: string
+    fecha_registro: string
 }
 
 export default function ClientesPage() {
     const [searchTerm, setSearchTerm] = useState('')
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingClient, setEditingClient] = useState<Client | null>(null)
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', company: '' })
+    const [formData, setFormData] = useState({
+        nombre_completo: '',
+        correo: '',
+        tarjeta_credito: '',
+        tarjeta_debito: '',
+        direccion: '',
+        ciudad: '',
+        pais: '',
+        fecha_registro: new Date().toISOString().slice(0, 10),
+    })
 
     const queryClient = useQueryClient()
     const { success, error, info } = useToast()
 
     // 1. Obtener Clientes
-    const { data: clients, isLoading } = useQuery({
+    const { data: clientsResponse, isLoading } = useQuery({
         queryKey: ['clients'],
         queryFn: async () => {
-            const res = await axios.get('/api/clients')
-            return res.data
+            const res = await api.get('/pasajeros', { params: { limit: 50 } })
+            return res.data.items
         }
     })
 
@@ -40,9 +52,9 @@ export default function ClientesPage() {
     const saveMutation = useMutation({
         mutationFn: async (data: any) => {
             if (editingClient) {
-                return axios.patch(`/api/clients/${editingClient.id}`, data)
+                return api.put(`/pasajeros/${editingClient.id}`, data)
             }
-            return axios.post('/api/clients', data)
+            return api.post('/pasajeros', data)
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['clients'] })
@@ -50,7 +62,7 @@ export default function ClientesPage() {
             closeModal()
         },
         onError: (err: any) => {
-            const message = err.response?.data?.error || 'Ocurrió un error al guardar los datos'
+            const message = err.response?.data?.detail || 'Ocurrió un error al guardar los datos'
             error(message)
         }
     })
@@ -58,10 +70,28 @@ export default function ClientesPage() {
     const openModal = (client?: Client) => {
         if (client) {
             setEditingClient(client)
-            setFormData({ name: client.name, email: client.email, phone: client.phone || '', company: client.company || '' })
+            setFormData({
+                nombre_completo: client.nombre_completo,
+                correo: client.correo,
+                tarjeta_credito: client.tarjeta_credito,
+                tarjeta_debito: client.tarjeta_debito,
+                direccion: client.direccion,
+                ciudad: client.ciudad,
+                pais: client.pais,
+                fecha_registro: client.fecha_registro?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+            })
         } else {
             setEditingClient(null)
-            setFormData({ name: '', email: '', phone: '', company: '' })
+            setFormData({
+                nombre_completo: '',
+                correo: '',
+                tarjeta_credito: '',
+                tarjeta_debito: '',
+                direccion: '',
+                ciudad: '',
+                pais: '',
+                fecha_registro: new Date().toISOString().slice(0, 10),
+            })
         }
         setIsModalOpen(true)
     }
@@ -70,7 +100,7 @@ export default function ClientesPage() {
 
     // 3. Mutación para Eliminar
     const deleteMutation = useMutation({
-        mutationFn: async (id: string) => axios.delete(`/api/clients/${id}`),
+        mutationFn: async (id: number) => api.delete(`/pasajeros/${id}`),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['clients'] })
             success('Cliente eliminado correctamente')
@@ -79,8 +109,8 @@ export default function ClientesPage() {
     })
 
     const filteredClients = clients?.filter((c: Client) =>
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchTerm.toLowerCase())
+        c.nombre_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        c.correo.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
     return (
@@ -110,15 +140,15 @@ export default function ClientesPage() {
                 />
                 <StatCard
                     title="Nuevos (30d)"
-                    value="+12"
-                    subtitle="Incremento del 8%"
+                    value={clients ? `${Math.max(0, Math.floor(clients.length * 0.12))}` : '0'}
+                    subtitle="Estimado reciente"
                     icon={<UserPlus className="h-6 w-6" />}
                     color="emerald"
                     loading={isLoading}
                 />
                 <StatCard
-                    title="Empresas"
-                    value={clients?.filter((c: Client) => c.company).length || 0}
+                    title="Regiones"
+                    value={clients ? new Set(clients.map((c) => c.pais)).size : 0}
                     icon={<Building2 className="h-6 w-6" />}
                     color="violet"
                     loading={isLoading}
@@ -150,8 +180,8 @@ export default function ClientesPage() {
                             <tr className="bg-white/5 text-slate-400 text-xs uppercase tracking-wider">
                                 <th className="px-6 py-4 font-semibold">Cliente</th>
                                 <th className="px-6 py-4 font-semibold">Contacto</th>
-                                <th className="px-6 py-4 font-semibold">Empresa</th>
-                                <th className="px-6 py-4 font-semibold">Estado</th>
+                                <th className="px-6 py-4 font-semibold">Ubicación</th>
+                                <th className="px-6 py-4 font-semibold">Registro</th>
                                 <th className="px-6 py-4 font-semibold text-right">Acciones</th>
                             </tr>
                         </thead>
@@ -167,24 +197,22 @@ export default function ClientesPage() {
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-full bg-sky-500/10 flex items-center justify-center text-sky-400 font-bold border border-sky-500/20">
-                                                {client.name.charAt(0)}
+                                                {client.nombre_completo.charAt(0)}
                                             </div>
-                                            <div className="font-medium text-white">{client.name}</div>
+                                            <div className="font-medium text-white">{client.nombre_completo}</div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="text-sm space-y-1">
-                                            <div className="flex items-center gap-2 text-slate-300"><Mail className="h-3 w-3" /> {client.email}</div>
-                                            <div className="flex items-center gap-2 text-slate-500"><Phone className="h-3 w-3" /> {client.phone || 'N/A'}</div>
+                                            <div className="flex items-center gap-2 text-slate-300"><Mail className="h-3 w-3" /> {client.correo}</div>
+                                            <div className="flex items-center gap-2 text-slate-500"><Building2 className="h-3 w-3" /> {client.ciudad}, {client.pais}</div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-300">
-                                        {client.company || <span className="text-slate-600">—</span>}
+                                        {client.direccion || <span className="text-slate-600">—</span>}
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                            {client.status}
-                                        </span>
+                                    <td className="px-6 py-4 text-sm text-slate-300">
+                                        {new Date(client.fecha_registro).toLocaleDateString('es-ES')}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -238,8 +266,8 @@ export default function ClientesPage() {
                                     <input
                                         type="text" required
                                         className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                        value={formData.nombre_completo}
+                                        onChange={(e) => setFormData({ ...formData, nombre_completo: e.target.value })}
                                     />
                                 </div>
                                 <div>
@@ -247,29 +275,67 @@ export default function ClientesPage() {
                                     <input
                                         type="email" required
                                         className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        value={formData.correo}
+                                        onChange={(e) => setFormData({ ...formData, correo: e.target.value })}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tarjeta de Crédito</label>
+                                        <input
+                                            type="text" required
+                                            className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
+                                            value={formData.tarjeta_credito}
+                                            onChange={(e) => setFormData({ ...formData, tarjeta_credito: e.target.value })}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tarjeta de Débito</label>
+                                        <input
+                                            type="text" required
+                                            className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
+                                            value={formData.tarjeta_debito}
+                                            onChange={(e) => setFormData({ ...formData, tarjeta_debito: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Dirección</label>
+                                    <input
+                                        type="text" required
+                                        className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
+                                        value={formData.direccion}
+                                        onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
                                     />
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Teléfono</label>
+                                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Ciudad</label>
                                         <input
-                                            type="text"
+                                            type="text" required
                                             className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
-                                            value={formData.phone}
-                                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                            value={formData.ciudad}
+                                            onChange={(e) => setFormData({ ...formData, ciudad: e.target.value })}
                                         />
                                     </div>
                                     <div>
-                                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Empresa</label>
+                                        <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">País</label>
                                         <input
-                                            type="text"
+                                            type="text" required
                                             className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
-                                            value={formData.company}
-                                            onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                                            value={formData.pais}
+                                            onChange={(e) => setFormData({ ...formData, pais: e.target.value })}
                                         />
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha de registro</label>
+                                    <input
+                                        type="date" required
+                                        className="mt-1 w-full rounded-xl bg-slate-950 border border-white/10 p-3 text-sm text-white focus:ring-2 focus:ring-sky-500/50"
+                                        value={formData.fecha_registro}
+                                        onChange={(e) => setFormData({ ...formData, fecha_registro: e.target.value })}
+                                    />
                                 </div>
                                 <div className="pt-4 flex gap-3">
                                     <Button

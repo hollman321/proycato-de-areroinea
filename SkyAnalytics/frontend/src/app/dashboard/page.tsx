@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/Card'
 import ClientOnly from '@/components/ClientOnly'
 import { useToast } from '@/providers/ToastProvider'
 import { motion } from 'framer-motion'
-import axios from 'axios'
+import api from '@/services/api'
 
 const CHART_COLORS = {
     ops: ['#38bdf8', '#fbbf24', '#10b981', '#f87171']
@@ -41,19 +41,14 @@ export default function DashboardPage() {
     const { success, info } = useToast()
 
     // Data Fetching real de los módulos construidos
-    const { data: financeData, isLoading: loadingFinance } = useQuery({
-        queryKey: ['finance-summary'],
-        queryFn: async () => (await axios.get('/api/finance')).data
+    const { data: operationsResponse, isLoading: loadingOps } = useQuery({
+        queryKey: ['operations'],
+        queryFn: async () => (await api.get('/operations', { params: { limit: 50 } })).data,
     })
 
-    const { data: opsData, isLoading: loadingOps } = useQuery({
-        queryKey: ['ops-summary'],
-        queryFn: async () => (await axios.get('/api/operations')).data
-    })
-
-    const { data: clientsData, isLoading: loadingClients } = useQuery({
+    const { data: clientsResponse, isLoading: loadingClients } = useQuery({
         queryKey: ['clients-summary'],
-        queryFn: async () => (await axios.get('/api/clients')).data
+        queryFn: async () => (await api.get('/pasajeros', { params: { limit: 50 } })).data,
     })
 
     const handleRefresh = () => {
@@ -61,34 +56,39 @@ export default function DashboardPage() {
         success('Métricas actualizadas en tiempo real')
     }
 
+    const operations = operationsResponse?.operations || []
+    const clients = clientsResponse?.items || []
+
     // Agregación de estadísticas para KPIs
     const stats = useMemo(() => {
-        const totalBalance = (financeData || []).reduce((acc: number, t: any) =>
+        const totalBalance = operations.reduce((acc: number, t: any) =>
             t.type === 'INCOME' ? acc + t.amount : acc - t.amount, 0)
 
-        const activeOps = (opsData || []).filter((o: any) => o.status === 'IN_PROGRESS').length
-        const totalClients = (clientsData || []).length
+        const activeOps = operations.filter((o: any) => o.status === 'IN_PROGRESS').length
+        const totalClients = clients.length
 
         return {
             balance: totalBalance,
             activeOps,
-            totalClients
+            totalClients,
         }
-    }, [financeData, opsData, clientsData])
+    }, [operations, clients])
 
     // Datos para el gráfico de tendencia financiera
     const financeChartData = useMemo(() => {
-        if (!financeData) return []
-        return financeData.slice(0, 7).reverse().map((t: any) => ({
-            name: new Date(t.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
-            amount: t.amount
-        }))
-    }, [financeData])
+        return operations
+            .filter((t: any) => t.type === 'INCOME')
+            .slice(0, 7)
+            .reverse()
+            .map((t: any) => ({
+                name: new Date(t.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' }),
+                amount: t.amount,
+            }))
+    }, [operations])
 
     // Datos para el gráfico de distribución de operaciones
     const opsChartData = useMemo(() => {
-        if (!opsData) return []
-        const counts = (opsData as any[]).reduce((acc: any, op: any) => {
+        const counts = operations.reduce((acc: any, op: any) => {
             acc[op.status] = (acc[op.status] || 0) + 1
             return acc
         }, {})
@@ -99,7 +99,7 @@ export default function DashboardPage() {
             { name: 'Completados', value: counts['COMPLETED'] || 0 },
             { name: 'Cancelados', value: counts['CANCELLED'] || 0 },
         ]
-    }, [opsData])
+    }, [operations])
 
     const formatCurrency = (val: number) =>
         new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val)
@@ -115,7 +115,7 @@ export default function DashboardPage() {
                     <Button
                         variant="secondary"
                         size="sm"
-                        icon={<RefreshCw className={`h-4 w-4 ${loadingFinance ? 'animate-spin' : ''}`} />}
+                        icon={<RefreshCw className={`h-4 w-4 ${loadingOps || loadingClients ? 'animate-spin' : ''}`} />}
                         onClick={handleRefresh}
                     >
                         Actualizar Datos
@@ -125,7 +125,7 @@ export default function DashboardPage() {
 
             {/* Fila de KPIs - Grid Adaptativo Real */}
             <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                <StatCard title="Revenue Total" value={formatCurrency(stats.balance)} trend={{ value: 8.2, label: 'mensual' }} icon={<DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />} color="emerald" loading={loadingFinance} />
+                <StatCard title="Revenue Total" value={formatCurrency(stats.balance)} trend={{ value: 8.2, label: 'mensual' }} icon={<DollarSign className="h-5 w-5 sm:h-6 sm:w-6" />} color="emerald" loading={loadingOps || loadingClients} />
                 <StatCard title="Operaciones Activas" value={stats.activeOps} trend={{ value: 12.5, label: 'incremento' }} icon={<Plane className="h-5 w-5 sm:h-6 sm:w-6" />} color="sky" loading={loadingOps} />
                 <StatCard title="Total Clientes" value={stats.totalClients} icon={<Users className="h-5 w-5 sm:h-6 sm:w-6" />} color="violet" loading={loadingClients} />
                 <StatCard title="Eficiencia" value="94.2%" trend={{ value: 2.1, label: 'mejoría' }} icon={<Activity className="h-5 w-5 sm:h-6 sm:w-6" />} color="amber" loading={loadingOps} />

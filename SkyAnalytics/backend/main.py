@@ -25,6 +25,7 @@ from routers import (
     auth,
     enterprise,
     estadisticas,
+    finance,
     flights,
     health,
     ia,
@@ -36,7 +37,6 @@ from routers import (
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO))
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
-
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -56,26 +56,13 @@ def create_app() -> FastAPI:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
 
-    # Manejo robusto de CORS_ORIGINS para evitar bloqueos en desarrollo
-    cors_origins = []
-    if isinstance(cors_origins, str):
-        if cors_origins.startswith("["):
-            try:
-                cors_origins = json.loads(cors_origins.replace("'", '"'))
-            except:
-                cors_origins = ["*"]
-        elif "," in cors_origins:
-            cors_origins = [o.strip() for o in cors_origins.split(",")]
-    else:
-        cors_origins = settings.cors_origins
-
-    if not cors_origins:
-        cors_origins = ["*"]
+    # Configurar CORS desde settings
+    cors_origins = settings.cors_origins or ["*"]
 
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=cors_origins or ["*"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -88,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router)
     app.include_router(analytics.router)
     app.include_router(enterprise.router)
+    app.include_router(finance.router)
     app.include_router(flights.router)
     app.include_router(estadisticas.router)
     app.include_router(operaciones.router)
@@ -96,6 +84,5 @@ def create_app() -> FastAPI:
     app.include_router(ia.router)
 
     return app
-
 
 app = create_app()

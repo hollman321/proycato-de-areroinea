@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -22,6 +24,27 @@ def total_pasajeros(
 ):
     total = db.query(Pasajero).count()
     return {"total_pasajeros": total}
+
+
+@router.get("/estadisticas/clientes-resumen")
+def clientes_resumen(
+    _: User = Depends(get_current_active_user), db: Session = Depends(get_db)
+):
+    hoy = date.today()
+    corte_30d = hoy - timedelta(days=30)
+    total = db.query(Pasajero).count()
+    nuevos_30d = (
+        db.query(func.count(Pasajero.id))
+        .filter(Pasajero.fecha_registro >= corte_30d)
+        .scalar()
+    )
+    regiones = db.query(func.count(func.distinct(Pasajero.pais))).scalar()
+    return {
+        "total_pasajeros": int(total or 0),
+        "nuevos_30d": int(nuevos_30d or 0),
+        "regiones": int(regiones or 0),
+        "fecha_consulta": hoy,
+    }
 
 
 @router.get("/estadisticas/por-pais")

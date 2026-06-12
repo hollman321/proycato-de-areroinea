@@ -29,6 +29,7 @@ from faker import Faker
 import psycopg2
 from psycopg2 import sql
 from dotenv import load_dotenv
+import uuid
 
 # Configurar logging
 logging.basicConfig(
@@ -40,7 +41,8 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Configuración de BD
-DB_HOST = os.getenv("DB_HOST", "localhost")
+DATABASE_URL = os.getenv("DATABASE_URL")
+DB_HOST = os.getenv("DB_HOST", "db")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("POSTGRES_DB", "skyanalytics")
 DB_USER = os.getenv("DB_USER", "admin")
@@ -167,8 +169,9 @@ def generar_lote_pasajeros(cantidad: int, inicio_global: int = 0) -> pd.DataFram
         nombre = FAKE.name()
 
         # Correo unico global por batch+indice para evitar colisiones entre lotes.
+        # Añadimos un sufijo UUID corto para garantizar unicidad entre ejecuciones.
         indice_global = inicio_global + i
-        correo = f"user{indice_global}_{random.randint(1000, 9999)}@example.com"
+        correo = f"user{indice_global}_{uuid.uuid4().hex[:8]}@example.com"
 
         # Tarjetas de crédito y débito válidas
         tarjeta_credito = generar_numero_tarjeta()
@@ -205,15 +208,19 @@ def generar_lote_pasajeros(cantidad: int, inicio_global: int = 0) -> pd.DataFram
 def conectar_bd() -> psycopg2.extensions.connection:
     """Conecta a la base de datos PostgreSQL"""
     try:
-        conexion = psycopg2.connect(
-            host=DB_HOST,
-            port=DB_PORT,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASSWORD,
-            connect_timeout=10,
-        )
-        logger.info(f"✓ Conectado a PostgreSQL: {DB_NAME}@{DB_HOST}:{DB_PORT}")
+        if DATABASE_URL:
+            conexion = psycopg2.connect(DATABASE_URL, connect_timeout=10)
+            logger.info("✓ Conectado a PostgreSQL via DATABASE_URL")
+        else:
+            conexion = psycopg2.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                database=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                connect_timeout=10,
+            )
+            logger.info(f"✓ Conectado a PostgreSQL: {DB_NAME}@{DB_HOST}:{DB_PORT}")
         return conexion
     except psycopg2.OperationalError as e:
         logger.error(f"✗ Error conectando a BD: {e}")

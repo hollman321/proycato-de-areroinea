@@ -1,6 +1,7 @@
 import pandas as pd
 from faker import Faker
 import numpy as np
+import os
 from sqlalchemy import create_engine
 import time
 
@@ -9,8 +10,9 @@ num_registros = 10_000_000
 batch_size = 100_000  # Insertar de 100k en 100k para no saturar la RAM
 fake = Faker()
 
-# Conexión a Postgres (Ajusta con tus credenciales de Docker)
-engine = create_engine('postgresql://admin:secretpassword@localhost:5432/skyanalytics')
+# Conexión a Postgres: usar `DATABASE_URL` si está disponible (fallback al servicio `db`)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password@db:5432/skyanalytics")
+engine = create_engine(DATABASE_URL)
 
 def generar_datos(n):
     data = {

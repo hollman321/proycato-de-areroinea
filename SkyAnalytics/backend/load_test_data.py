@@ -8,7 +8,7 @@ import random
 from datetime import datetime, timedelta
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:secretpassword@db:5432/skyanalytics")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password@localhost:5432/skyanalytics")
 
 engine = create_engine(DATABASE_URL)
 fake = Faker()

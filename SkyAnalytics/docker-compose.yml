@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   frontend:
@@ -8,7 +8,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - JWT_SECRET=9k8L7m6N5o4P3q2R1s0T9u8V7w6X5y4Z3a2B1c0D9e8F7g6H5i4J3k2L1m0
     depends_on:
       - backend
     restart: always
@@ -18,10 +18,18 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - DATABASE_URL=postgresql://admin:password@db:5432/skyanalytics
       - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=9k8L7m6N5o4P3q2R1s0T9u8V7w6X5y4Z3a2B1c0D9e8F7g6H5i4J3k2L1m0
+      - JWT_ALGORITHM=HS256
+      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      - ACCESS_TOKEN_REMEMBER_DAYS=7
+      - CORS_ORIGINS=*
+      - LOG_LEVEL=INFO
+      - DEFAULT_ADMIN_EMAIL=admin@skyanalytics.com
+      - DEFAULT_ADMIN_PASSWORD=admin123
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - NODE_ENV=production
@@ -30,27 +38,18 @@ services:
         condition: service_healthy
     restart: always
 
-  ai-service:
-    build:
-      context: .
-      dockerfile: ai-service/Dockerfile
-    ports:
-      - "8001:8001"
-    environment:
-      - NODE_ENV=production
-    restart: always
-
   db:
     image: postgres:15-alpine
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=skyanalytics
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./SkyAnalytics/frontend/01_security_schema.sql:/docker-entrypoint-initdb.d/01_security_schema.sql
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U admin -d skyanalytics" ]
+      test: ["CMD-SHELL", "pg_isready -U admin -d skyanalytics"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,6 +58,17 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@skyanalytics.com
+      - PGADMIN_DEFAULT_PASSWORD=admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    restart: always
 
 volumes:
   postgres_data:

@@ -1,23 +1,18 @@
-# Multi-stage build for Backend Node.js
-FROM node:20-alpine AS base
+FROM python:3.12-slim
+
 WORKDIR /app
-COPY package*.json ./
 
-FROM base AS deps
-RUN npm ci
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-FROM base AS runner
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-ENV NODE_ENV=production
-ENV PORT=8000
+COPY backend/ .
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:8000/health', (res) => res.statusCode === 200 ? process.exit(0) : process.exit(1))"
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"
 
-# Usar exec form para asegurar que las señales (SIGTERM) se propaguen correctamente al proceso node
-ENTRYPOINT ["node"]
-CMD ["server.js"]
+CMD ["sh", "-c", "python scripts/seed_admin.py && uvicorn main:app --host 0.0.0.0 --port 8000"]

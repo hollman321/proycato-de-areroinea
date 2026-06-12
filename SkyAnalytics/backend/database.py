@@ -35,8 +35,13 @@ DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://admin:secretpassword@db:5432/skyanalytics"
 )
 
-# Importer modelos AQUÍ para evitar circular imports
-from models import Base
+# Importar modelos AQUÍ para evitar circular imports.
+# Intentar import relativo cuando el paquete se ejecute como paquete,
+# y hacer fallback a la importación absoluta cuando se ejecute desde el directorio.
+try:
+    from .models import Base  # type: ignore
+except Exception:
+    from models import Base  # type: ignore
 
 # ==================== ENGINE Y SESIONES ====================
 # echo=True muestra SQL en logs (desactiva en producción)

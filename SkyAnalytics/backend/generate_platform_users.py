@@ -12,24 +12,21 @@ import hashlib
 # ============== CONFIGURACIÓN ==============
 NUM_USERS = 10_000_000
 BATCH_SIZE = 50_000
-DB_URL = "postgresql://admin:secretpassword@localhost:5432/skyanalytics"
+DB_URL = "postgresql://admin:password@db:5432/skyanalytics"
 # ===========================================
 
 fake = Faker(["es_ES", "en_US", "pt_BR", "fr_FR"])  # Diversidad de nombres
 
 engine = create_engine(DB_URL)
 
-
 def generate_hashed_password(password: str = "SkyAnalytics2024!") -> str:
     """Genera hash simple para la contraseña default."""
     return hashlib.sha256(password.encode()).hexdigest()
-
 
 def generate_username(first_name: str, last_name: str, index: int) -> str:
     """Genera nombre de usuario único."""
     base = f"{first_name.lower()}.{last_name.lower()}"
     return f"{base}{index}"
-
 
 def generate_email(
     first_name: str, last_name: str, index: int, domain: str = None
@@ -55,13 +52,11 @@ def generate_email(
     username = generate_username(first_name, last_name, index)
     return f"{username}@{domain}"
 
-
 def get_existing_emails() -> set:
     """Obtiene emails ya existentes en la tabla users."""
     with engine.connect() as conn:
         result = conn.execute(text("SELECT email FROM users"))
         return {row[0] for row in result}
-
 
 def generate_users_batch(n: int, existing_emails: set, start_id: int) -> pd.DataFrame:
     """Genera un lote de usuarios."""
@@ -100,13 +95,11 @@ def generate_users_batch(n: int, existing_emails: set, start_id: int) -> pd.Data
 
     return pd.DataFrame(data)
 
-
 def get_max_user_id() -> int:
     """Obtiene el máximo ID de usuario actual."""
     with engine.connect() as conn:
         result = conn.execute(text("SELECT COALESCE(MAX(id), 0) FROM users"))
         return result.scalar()
-
 
 def main():
     print(f"🚀 Iniciando generación de {NUM_USERS:,} usuarios de plataforma...")
@@ -175,7 +168,6 @@ def main():
     print(f"   Total usuarios en BD: {total_count:,}")
     print(f"   Usuarios activos: {active_count:,}")
     print(f"   Tiempo total: {time.time() - start_time:.1f} segundos")
-
 
 if __name__ == "__main__":
     main()

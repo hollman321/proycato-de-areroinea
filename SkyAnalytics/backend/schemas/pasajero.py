@@ -174,8 +174,16 @@ class MillasResponse(BaseModel):
         from_attributes = True
 
 
-class PasajeroResponse(PasajeroSchemaBase):
+class PasajeroResponse(BaseModel):
     id: int
+    nombre_completo: str
+    correo: EmailStr
+    tarjeta_credito: str
+    tarjeta_debito: str
+    direccion: str
+    ciudad: str
+    pais: str
+    fecha_registro: date
 
     class Config:
         from_attributes = True

@@ -10,27 +10,29 @@ from faker import Faker
 import psycopg2
 
 # ============== CONFIGURACIÓN ==============
-NUM_USERS = 10_000_000
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+NUM_USERS = 10_000
 BATCH_SIZE = 100_000
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "dbname": "skyanalytics",
-    "user": "admin",
-    "password": "secretpassword",
+    "host": os.getenv("DB_HOST", "db"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "dbname": os.getenv("POSTGRES_DB", "skyanalytics"),
+    "user": os.getenv("DB_USER", "admin"),
+    "password": os.getenv("DB_PASS", "password"),
 }
 # ===========================================
 
 fake = Faker(["es_ES", "en_US", "pt_BR", "fr_FR"])
 
-
 def get_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-
 def generate_hashed_password(password: str = "SkyAnalytics2024!") -> str:
     return hashlib.sha256(password.encode()).hexdigest()
-
 
 def generate_email(index: int) -> str:
     first = fake.first_name().lower()
@@ -51,13 +53,11 @@ def generate_email(index: int) -> str:
     ]
     return f"{first}.{last}{index}@{fake.random_element(domains)}"
 
-
 def get_max_user_id() -> int:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT COALESCE(MAX(id), 0) FROM users")
             return cur.fetchone()[0]
-
 
 def generate_batch_csv(start_id: int, count: int) -> io.StringIO:
     hashed_pw = generate_hashed_password()
@@ -76,12 +76,11 @@ def generate_batch_csv(start_id: int, count: int) -> io.StringIO:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         output.write(
-            f"{user_id}\t{email}\t{hashed_pw}\t{full_name}\t{role}\t{tenant_id}\t{is_active}\t{now}\t{now}\n"
+            f"{user_id}\t{email}\t{hashed_pw}\t{full_name}\t{role}\t{tenant_id}\t{is_active}\t{now}\n"
         )
 
     output.seek(0)
     return output
-
 
 def main():
     print(f"🚀 Iniciando generación de {NUM_USERS:,} usuarios...")
@@ -126,7 +125,6 @@ def main():
                         "tenant_id",
                         "is_active",
                         "created_at",
-                        "updated_at",
                     ),
                     sep="\t",
                 )
@@ -151,7 +149,6 @@ def main():
     print(f"\n✅ ¡Proceso completado!")
     print(f"   Total usuarios en BD: {total:,}")
     print(f"   Tiempo total: {time.time() - start_time:.1f} segundos")
-
 
 if __name__ == "__main__":
     main()

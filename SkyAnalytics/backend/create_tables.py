@@ -3,7 +3,11 @@ from sqlalchemy import create_engine
 from models import Base
 
 # Obtener la URL de la base de datos desde las variables de entorno
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://admin:secretpassword@localhost:5432/skyanalytics')
+# Fallback usa el host del servicio `db` en Docker Compose
+DATABASE_URL = os.getenv(
+	"DATABASE_URL",
+	"postgresql://admin:password@db:5432/skyanalytics",
+)
 
 # Crear el engine
 engine = create_engine(DATABASE_URL)

@@ -2,13 +2,55 @@
 
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend, AreaChart, Area } from 'recharts'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import ClientOnly from '@/components/ClientOnly'
-import { RefreshCcw, Download, Sparkles, CalendarDays, ChevronRight, TrendingUp } from 'lucide-react'
+import { RefreshCcw, Download, Sparkles, CalendarDays } from 'lucide-react'
 import { jsPDF } from 'jspdf'
-import api, { getWithFallback } from '@/services/api'
+import { getWithFallback } from '@/services/api'
 import { mockDashboardResumen, mockTendenciasMensuales, mockPaises, mockAIRecommendations } from '@/services/mockData'
 import { downloadExcel } from '@/utils/export'
+
+type PaisClave = {
+    name: string
+    value: number
+    porcentaje?: number
+}
+
+type PaisApi = {
+    pais?: string
+    cantidad?: number
+    name?: string
+    value?: number
+    porcentaje?: number
+}
+
+type TendenciaApi = {
+    mes: string
+    cantidad?: number
+    valor?: number
+}
+
+type ResumenEjecutivo = {
+    total_pasajeros?: number
+    paises_cobertura_activa_30d?: number
+    paises_historico_distintos?: number
+    ciudades_nodos_urbanos?: number
+    usuarios_activos?: number
+    viajes_completados?: number
+    ingresos?: number
+    clientes_frecuentes?: number
+}
+
+type AIRecommendation = {
+    id: string
+    title: string
+    description: string
+    confidence: string
+}
+
+type AIRecommendationsResponse = {
+    recommendations: AIRecommendation[]
+}
 
 function formatCurrency(value: number) {
     return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -19,7 +61,7 @@ export default function EjecutivoPage() {
     const [fechaDesde, setFechaDesde] = useState('')
     const [fechaHasta, setFechaHasta] = useState('')
 
-    const { data: resumen } = useQuery({
+    const { data: resumen } = useQuery<ResumenEjecutivo>({
         queryKey: ['ejecutivo-resumen'],
         queryFn: async () => {
             return await getWithFallback('/analytics/resumen', mockDashboardResumen)
@@ -27,14 +69,14 @@ export default function EjecutivoPage() {
         staleTime: 60000,
     })
 
-    const { data: tendencias } = useQuery({
+    const { data: tendencias } = useQuery<TendenciaApi[]>({
         queryKey: ['ejecutivo-tendencias'],
         queryFn: async () => {
             return await getWithFallback('/analytics/tendencia-mensual', mockTendenciasMensuales)
         },
     })
 
-    const { data: paises } = useQuery({
+    const { data: paises } = useQuery<PaisApi[]>({
         queryKey: ['ejecutivo-paises', fechaDesde, fechaHasta],
         queryFn: async () => {
             const params: Record<string, string> = {}
@@ -44,7 +86,7 @@ export default function EjecutivoPage() {
         },
     })
 
-    const { data: aiRecommendations } = useQuery({
+    const { data: aiRecommendations } = useQuery<AIRecommendationsResponse>({
         queryKey: ['ejecutivo-ia'],
         queryFn: async () => {
             return await getWithFallback('/admin/enterprise/ai/recommendations', mockAIRecommendations)
@@ -52,7 +94,31 @@ export default function EjecutivoPage() {
         staleTime: 120000,
     })
 
-    const topPaises = useMemo(() => (paises || []).slice(0, 6), [paises])
+    const totalPasajeros = resumen?.total_pasajeros ?? resumen?.usuarios_activos ?? 0
+    const paisesActivos = resumen?.paises_cobertura_activa_30d ?? resumen?.paises_historico_distintos ?? 0
+    const ciudadesActivas = resumen?.ciudades_nodos_urbanos ?? 0
+
+    const tendenciasChart = useMemo(
+        () =>
+            (tendencias || []).map((item) => ({
+                mes: String(item.mes).slice(0, 7),
+                valor: item.valor ?? item.cantidad ?? 0,
+            })),
+        [tendencias],
+    )
+
+    const topPaises = useMemo<PaisClave[]>(() => {
+        const mapped = (paises || []).map((item) => ({
+            name: item.name ?? item.pais ?? 'Sin pais',
+            value: item.value ?? item.cantidad ?? 0,
+            porcentaje: item.porcentaje,
+        }))
+        const total = mapped.reduce((acc, item) => acc + item.value, 0)
+        return mapped.slice(0, 6).map((item) => ({
+            ...item,
+            porcentaje: item.porcentaje ?? (total > 0 ? Number(((item.value / total) * 100).toFixed(1)) : 0),
+        }))
+    }, [paises])
 
     const handleRefresh = () => {
         queryClient.invalidateQueries({ queryKey: ['ejecutivo-resumen'] })
@@ -65,11 +131,11 @@ export default function EjecutivoPage() {
         const rows = [
             {
                 KPI: 'Usuarios activos',
-                Valor: resumen?.usuarios_activos || 0,
+                Valor: totalPasajeros,
             },
             {
                 KPI: 'Viajes completados',
-                Valor: resumen?.viajes_completados || 0,
+                Valor: resumen?.viajes_completados || totalPasajeros,
             },
             {
                 KPI: 'Ingresos',
@@ -84,8 +150,8 @@ export default function EjecutivoPage() {
         doc.setFontSize(16)
         doc.text('Reporte Ejecutivo - SkyAnalytics', 14, 20)
         doc.setFontSize(11)
-        doc.text(`Usuarios activos: ${resumen?.usuarios_activos ?? 'N/A'}`, 14, 36)
-        doc.text(`Viajes completados: ${resumen?.viajes_completados ?? 'N/A'}`, 14, 46)
+        doc.text(`Usuarios activos: ${totalPasajeros}`, 14, 36)
+        doc.text(`Viajes completados: ${resumen?.viajes_completados ?? totalPasajeros}`, 14, 46)
         doc.text(`Ingresos totales: ${formatCurrency(resumen?.ingresos ?? 0)}`, 14, 56)
         doc.save('reporte_ejecutivo.pdf')
     }
@@ -131,10 +197,10 @@ export default function EjecutivoPage() {
                         <p className="text-sm uppercase tracking-[0.2em] text-sky-400">KPI Ejecutivo</p>
                         <div className="mt-6 grid gap-4 sm:grid-cols-2">
                             {[
-                                { label: 'Usuarios activos', value: resumen?.usuarios_activos || 0 },
-                                { label: 'Viajes completados', value: resumen?.viajes_completados || 0 },
+                                { label: 'Usuarios registrados', value: totalPasajeros },
+                                { label: 'Paises activos', value: paisesActivos },
                                 { label: 'Ingresos', value: formatCurrency(resumen?.ingresos || 0) },
-                                { label: 'Clientes frecuentes', value: resumen?.clientes_frecuentes || 0 },
+                                { label: 'Ciudades', value: ciudadesActivas },
                             ].map((item) => (
                                 <div key={item.label} className="rounded-3xl bg-white/5 p-4">
                                     <p className="text-sm text-gray-400">{item.label}</p>
@@ -150,7 +216,7 @@ export default function EjecutivoPage() {
                             <Sparkles className="h-5 w-5 text-sky-400" />
                         </div>
                         <div className="mt-6 space-y-4">
-                            {(aiRecommendations?.recommendations ?? []).slice(0, 3).map((item: any) => (
+                            {(aiRecommendations?.recommendations ?? []).slice(0, 3).map((item) => (
                                 <div key={item.id} className="rounded-3xl bg-slate-900/80 p-4">
                                     <div className="flex items-start justify-between gap-4">
                                         <div>
@@ -200,7 +266,7 @@ export default function EjecutivoPage() {
                     <div className="mt-6 h-72">
                         <ClientOnly>
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={tendencias || []} margin={{ left: -12, right: 0, top: 6, bottom: 6 }}>
+                                <LineChart data={tendenciasChart} margin={{ left: -12, right: 0, top: 6, bottom: 6 }}>
                                     <CartesianGrid strokeDasharray="4 4" stroke="#334155" />
                                     <XAxis dataKey="mes" stroke="#94A3B8" />
                                     <YAxis stroke="#94A3B8" />
@@ -218,7 +284,7 @@ export default function EjecutivoPage() {
                         <p className="text-sm text-gray-400">Top 6</p>
                     </div>
                     <div className="mt-6 space-y-3">
-                        {topPaises.map((item: any) => (
+                        {topPaises.map((item) => (
                             <div key={item.name} className="rounded-3xl bg-slate-900/80 p-4">
                                 <div className="flex items-center justify-between gap-3">
                                     <div>

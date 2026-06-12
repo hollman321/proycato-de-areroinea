@@ -19,6 +19,7 @@ from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session
 
 from models.airport import Airport
+from models.finance import FinancialTransaction
 from models.pasajero import Pasajero
 from models.pasajero import MillasAcumuladas, Transaccion
 from services import categoria_service
@@ -76,9 +77,26 @@ def resumen(db: Session) -> dict:
             func.count(func.distinct(Pasajero.ciudad)),
         ).one()
     )
+    ingresos = (
+        db.query(func.coalesce(func.sum(FinancialTransaction.amount), 0))
+        .filter(FinancialTransaction.type == "INCOME")
+        .scalar()
+        or 0
+    )
+    viajes_completados = db.query(func.count(Transaccion.id)).scalar() or 0
+    clientes_frecuentes = (
+        db.query(func.count(MillasAcumuladas.pasajero_id))
+        .filter(MillasAcumuladas.millas_totales > 5000)
+        .scalar()
+        or 0
+    )
 
     return {
         "total_pasajeros": int(total),
+        "usuarios_activos": int(total),
+        "viajes_completados": int(viajes_completados),
+        "ingresos": float(ingresos),
+        "clientes_frecuentes": int(clientes_frecuentes),
         "paises_cobertura_activa_30d": int(paises_cobertura_activa_30d),
         "paises_historico_distintos": int(paises_historico_distintos),
         "ciudades_nodos_urbanos": int(ciudades_nodos_urbanos),

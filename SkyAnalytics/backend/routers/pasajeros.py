@@ -224,7 +224,7 @@ async def buscar_por_pais(
     return PaginatedPasajeros(items=pasajeros, pagination=pagination)
 
 
-@router.get("/pasajeros/perfil/{pasajero_id}", response_model=PerfillPasajero)
+@router.get("/pasajeros/perfil/{pasajero_id}", response_model=PerfilPasajero)
 async def obtener_perfil_pasajero(
     pasajero_id: int,
     db: Session = Depends(get_db),

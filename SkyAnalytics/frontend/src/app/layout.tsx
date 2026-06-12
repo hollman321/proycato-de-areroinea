@@ -1,8 +1,7 @@
+import ClientProviders from "@/components/ClientProviders";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { ReactQueryProvider } from "@/providers/ReactQueryProvider";
-import { ToastProvider } from "@/providers/ToastProvider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -14,11 +13,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
-}
+};
 
-export const themeColor = '#0b1220'
+export const themeColor = "#0b1220";
 
 export default function RootLayout({
   children,
@@ -27,12 +26,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="h-full scroll-smooth">
-      <body className={`${inter.className} min-h-full bg-slate-950 text-white antialiased`}>
-        <ReactQueryProvider>
-          <ToastProvider>
-            {children}
-          </ToastProvider>
-        </ReactQueryProvider>
+      <body
+        className={`${inter.className} min-h-full bg-slate-950 text-white antialiased`}
+      >
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );

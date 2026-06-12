@@ -21,6 +21,13 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
+import sys
+from pathlib import Path
+
+# Asegurar que el directorio backend esté en sys.path para poder importar el paquete `models`
+project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(project_root))
+
 from models import Base
 target_metadata = Base.metadata
 

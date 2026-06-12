@@ -33,6 +33,11 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
+# Alias antiguo: algunas scripts esperan `hash_password`
+def hash_password(password: str) -> str:
+    return get_password_hash(password)
+
+
 def create_access_token(
     subject: str,
     *,

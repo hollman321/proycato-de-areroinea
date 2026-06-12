@@ -19,24 +19,36 @@ from slowapi.middleware import SlowAPIMiddleware
 from core.config import settings
 from middleware.errors import register_exception_handlers
 from middleware.logging_middleware import RequestLoggingMiddleware
-from routers import (
-    admin,
-    analytics,
-    auth,
-    enterprise,
-    estadisticas,
-    finance,
-    flights,
-    health,
-    ia,
-    operaciones,
-    pasajeros,
-    reference,
-)
 
 logging.basicConfig(level=getattr(logging, settings.log_level, logging.INFO))
+logger = logging.getLogger(__name__)
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+
+# Importar routers con manejo de errores
+routers_to_load = [
+    ("health", "routers.health"),
+    ("auth", "routers.auth"),
+    ("admin", "routers.admin"),
+    ("analytics", "routers.analytics"),
+    ("enterprise", "routers.enterprise"),
+    ("finance", "routers.finance"),
+    ("flights", "routers.flights"),
+    ("estadisticas", "routers.estadisticas"),
+    ("operaciones", "routers.operaciones"),
+    ("pasajeros", "routers.pasajeros"),
+    ("reference", "routers.reference"),
+    ("ia", "routers.ia"),
+]
+
+loaded_routers = {}
+for name, module_path in routers_to_load:
+    try:
+        mod = __import__(module_path, fromlist=["router"])
+        loaded_routers[name] = mod.router
+        logger.info(f"✓ Router '{name}' cargado exitosamente")
+    except Exception as e:
+        logger.warning(f"✗ No se pudo cargar router '{name}': {e}")
 
 def create_app() -> FastAPI:
     app = FastAPI(
@@ -70,18 +82,10 @@ def create_app() -> FastAPI:
 
     register_exception_handlers(app)
 
-    app.include_router(health.router)
-    app.include_router(auth.router)
-    app.include_router(admin.router)
-    app.include_router(analytics.router)
-    app.include_router(enterprise.router)
-    app.include_router(finance.router)
-    app.include_router(flights.router)
-    app.include_router(estadisticas.router)
-    app.include_router(operaciones.router)
-    app.include_router(pasajeros.router)
-    app.include_router(reference.router)
-    app.include_router(ia.router)
+    # Cargar routers disponibles
+    for name, router in loaded_routers.items():
+        app.include_router(router)
+        logger.info(f"Router '{name}' incluido en la app")
 
     return app
 

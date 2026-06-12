@@ -17,7 +17,9 @@ exports.requireAuth = (req, res, next) => {
       .json({ error: "Acceso denegado. Token no proporcionado." });
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = authHeader.split(" ")[1];  https://tu-proyecto.vercel.app/
+  https://tu-proyecto.vercel.app/docs
+  https://tu-proyecto.vercel.app/health
 
   try {
     const decoded = verifyToken(token);

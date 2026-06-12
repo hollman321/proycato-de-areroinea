@@ -38,10 +38,18 @@ DATABASE_URL = os.getenv(
 # Importar modelos AQUÍ para evitar circular imports.
 # Intentar import relativo cuando el paquete se ejecute como paquete,
 # y hacer fallback a la importación absoluta cuando se ejecute desde el directorio.
+Base = None
 try:
     from .models import Base  # type: ignore
-except Exception:
-    from models import Base  # type: ignore
+except Exception as e:
+    try:
+        from models import Base  # type: ignore
+    except Exception as e2:
+        import logging
+        logging.getLogger(__name__).warning(f"No se pudo importar modelos: {e}, {e2}")
+        # Create a dummy Base for safety
+        from sqlalchemy.orm import declarative_base
+        Base = declarative_base()
 
 # ==================== ENGINE Y SESIONES ====================
 # echo=True muestra SQL en logs (desactiva en producción)
@@ -65,19 +73,27 @@ else:
     engine_args["pool_size"] = 20
     engine_args["max_overflow"] = 0
 
-engine = create_engine(DATABASE_URL, **engine_args)
+try:
+    engine = create_engine(DATABASE_URL, **engine_args)
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).error(f"Error creating database engine: {e}")
+    # Fallback to SQLite for safety
+    engine = create_engine("sqlite:///skyanalytics_fallback.db", poolclass=StaticPool)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Crear tablas al importar; en serverless la BD puede no estar aún (p. ej. sin DATABASE_URL en Vercel).
-try:
-    Base.metadata.create_all(bind=engine)
-except Exception:
-    import logging
+if Base is not None:
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        import logging
 
-    logging.getLogger(__name__).warning(
-        "No se pudieron crear tablas al iniciar (¿DATABASE_URL o red?). La API arrancará; revisa la BD.",
-        exc_info=True,
+        logging.getLogger(__name__).warning(
+            "No se pudieron crear tablas al iniciar (¿DATABASE_URL o red?). La API arrancará; revisa la BD.",
+            exc_info=True,
+        )
     )
 
 

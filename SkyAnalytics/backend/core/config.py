@@ -45,10 +45,8 @@ class Settings:
 
 @lru_cache
 def get_settings() -> Settings:
-    secret_key = os.getenv("SECRET_KEY")
-    if not secret_key:
-        raise ValueError("SECRET_KEY environment variable is required")
-
+    secret_key = os.getenv("SECRET_KEY", "default-dev-secret-key-change-in-production")
+    
     # CORS: lista separada por comas, o "*" para desarrollo
     raw_cors = os.getenv("CORS_ORIGINS", "*").strip()
     if raw_cors == "*":
